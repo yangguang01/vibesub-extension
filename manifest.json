@@ -1,0 +1,22 @@
+{
+  "name": "Simple YouTube Subtitles",
+  "version": "1.0",
+  "manifest_version": 3,
+  "description": "A simple extension to display custom subtitles on YouTube videos",
+  "icons": {
+    "128": "icon.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/*"],
+      "js": ["subtitle-engine.js", "content.js"],
+      "css": []
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["test.srt"],
+      "matches": ["*://www.youtube.com/*"]
+    }
+  ]
+}

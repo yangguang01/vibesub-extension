@@ -1,17 +1,25 @@
 {
-  "name": "Simple YouTube Subtitles",
+  "name": "Tube Trans - AI精翻字幕",
   "version": "1.0",
   "manifest_version": 3,
-  "description": "A simple extension to display custom subtitles on YouTube videos",
+  "description": "一个使用AI模型翻译YouTube视频字幕的扩展",
   "icons": {
     "128": "icon.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
   },
   "content_scripts": [
     {
       "matches": ["*://www.youtube.com/*"],
       "js": ["subtitle-engine.js", "content.js"],
-      "css": []
+      "css": ["styles.css"]
     }
+  ],
+  "permissions": [
+    "storage",
+    "activeTab"
   ],
   "web_accessible_resources": [
     {

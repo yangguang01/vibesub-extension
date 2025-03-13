@@ -1,14 +1,15 @@
 /**
- * Simple YouTube Subtitles
+ * Tube Trans - AI精翻字幕
  * 
  * 内容脚本，负责监测YouTube视频页面并初始化字幕显示
  */
 
-console.log('Simple YouTube Subtitles: 内容脚本已加载');
+console.log('Tube Trans: 内容脚本已加载');
 
 let subtitleEngine = null;
 let currentVideoId = null;
 let checkVideoInterval = null;
+let translationStatus = null; // 翻译状态
 
 /**
  * 加载SRT文件
@@ -114,6 +115,68 @@ function checkAndProcessVideo() {
   }
 }
 
+/**
+ * 获取当前视频信息
+ * @returns {Object} 视频信息对象
+ */
+function getVideoInfo() {
+  // 获取视频标题
+  const titleElement = document.querySelector('h1.ytd-watch-metadata');
+  const title = titleElement ? titleElement.textContent.trim() : '未知标题';
+  
+  // 获取视频缩略图
+  const videoId = getVideoId();
+  const thumbnail = videoId ? `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg` : '';
+  
+  // 获取视频时长
+  const videoElement = document.querySelector('video');
+  const duration = videoElement ? videoElement.duration : 0;
+  
+  // 检查是否有字幕
+  const hasSubtitles = document.querySelector('.ytp-subtitles-button[aria-pressed="true"]') !== null;
+  
+  return {
+    title,
+    thumbnail,
+    duration,
+    hasSubtitles,
+    videoId
+  };
+}
+
+/**
+ * 显示翻译状态
+ * @param {string} message - 状态消息
+ * @param {boolean} isLoading - 是否为加载状态
+ */
+function showTranslationStatus(message, isLoading = false) {
+  // 移除现有状态指示器
+  if (translationStatus) {
+    translationStatus.remove();
+  }
+  
+  // 创建新的状态指示器
+  translationStatus = document.createElement('div');
+  translationStatus.className = 'translation-status';
+  if (isLoading) {
+    translationStatus.classList.add('loading');
+  }
+  translationStatus.textContent = message;
+  
+  // 添加到页面
+  document.body.appendChild(translationStatus);
+  
+  // 如果不是加载状态，5秒后自动移除
+  if (!isLoading) {
+    setTimeout(() => {
+      if (translationStatus) {
+        translationStatus.remove();
+        translationStatus = null;
+      }
+    }, 5000);
+  }
+}
+
 // 启动周期性检查
 function startMonitoring() {
   console.log('开始监控YouTube视频');
@@ -176,6 +239,40 @@ function startMonitoring() {
     subtree: true
   });
 }
+
+// 监听来自弹出窗口的消息
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('收到消息:', message);
+  
+  // 处理获取视频信息请求
+  if (message.action === 'getVideoInfo') {
+    const videoInfo = getVideoInfo();
+    sendResponse({ videoInfo });
+    return true;
+  }
+  
+  // 处理翻译字幕请求
+  if (message.action === 'translateSubtitles') {
+    // 这里只是UI演示，不实现实际功能
+    console.log('收到翻译请求，设置:', message.settings);
+    
+    // 显示翻译中状态
+    showTranslationStatus('正在翻译字幕...', true);
+    
+    // 模拟成功响应
+    setTimeout(() => {
+      // 更新状态
+      showTranslationStatus('字幕翻译完成！');
+      
+      // 响应弹出窗口
+      sendResponse({ success: true });
+    }, 1000);
+    
+    return true; // 保持消息通道开放，以便异步响应
+  }
+  
+  return false;
+});
 
 // 页面加载完成后开始监控
 if (document.readyState === 'loading') {

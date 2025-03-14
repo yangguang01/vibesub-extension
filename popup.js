@@ -75,12 +75,16 @@ document.addEventListener('DOMContentLoaded', async () => {
    * 切换API密钥可见性
    */
   function toggleApiKeyVisibility() {
+    const eyeIcon = toggleKeyBtn.querySelector('i');
+    
     if (apiKeyInput.type === 'password') {
       apiKeyInput.type = 'text';
-      toggleKeyBtn.textContent = '🔒';
+      eyeIcon.classList.remove('fa-eye');
+      eyeIcon.classList.add('fa-eye-slash');
     } else {
       apiKeyInput.type = 'password';
-      toggleKeyBtn.textContent = '👁️';
+      eyeIcon.classList.remove('fa-eye-slash');
+      eyeIcon.classList.add('fa-eye');
     }
   }
   
@@ -164,7 +168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const contentEl = document.getElementById('content');
     contentEl.innerHTML = `
       <div class="no-video">
-        <p>请在YouTube视频页面打开此扩展</p>
+        <p><i class="fas fa-exclamation-circle"></i> 请在YouTube视频页面打开此扩展</p>
         <p>只有在观看视频时才能使用翻译功能</p>
       </div>
     `;
@@ -212,7 +216,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // 禁用按钮，显示加载状态
     translateBtn.disabled = true;
-    translateBtn.innerHTML = '<span class="submit-icon">⏳</span>提交中...';
+    translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-spinner fa-spin"></i></span>提交中...';
     
     // 发送翻译请求到内容脚本
     chrome.tabs.sendMessage(
@@ -228,7 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       (response) => {
         // 恢复按钮状态
         translateBtn.disabled = false;
-        translateBtn.innerHTML = '<span class="submit-icon">🔄</span>翻译字幕';
+        translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>翻译字幕';
         
         if (chrome.runtime.lastError) {
           console.error('提交翻译任务失败:', chrome.runtime.lastError);

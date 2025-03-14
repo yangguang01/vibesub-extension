@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tube Trans - AI精翻字幕</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     :root {
       --primary-color: #8c52ff;
@@ -45,13 +46,6 @@
       font-size: 20px;
       font-weight: 600;
       margin: 0;
-    }
-    
-    .settings-icon {
-      margin-left: auto;
-      cursor: pointer;
-      color: #666;
-      font-size: 20px;
     }
     
     .video-info {
@@ -146,6 +140,7 @@
     
     select, input {
       width: 100%;
+      box-sizing: border-box;
       padding: 8px 10px;
       border: 1px solid var(--border-color);
       border-radius: 4px;
@@ -163,6 +158,7 @@
     
     .api-key-container {
       position: relative;
+      width: 100%;
     }
     
     .toggle-visibility {
@@ -220,6 +216,12 @@
       padding: 20px;
       color: #666;
     }
+    
+    .icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
   </style>
 </head>
 <body>
@@ -227,7 +229,6 @@
     <div class="header">
       <img src="icon.png" alt="Tube Trans Logo" class="logo">
       <h1 class="title">Tube Trans - AI精翻字幕</h1>
-      <div class="settings-icon">⚙️</div>
     </div>
     
     <div id="content">
@@ -238,11 +239,11 @@
           <h2 id="video-title" class="video-title">加载中...</h2>
           <div class="video-meta">
             <div class="duration">
-              <span class="duration-icon">⏱️</span>
+              <span class="duration-icon icon"><i class="fas fa-clock"></i></span>
               <span id="duration">--:--</span>
             </div>
             <div class="subtitle-status">
-              <span class="subtitle-icon">📄</span>
+              <span class="subtitle-icon icon"><i class="fas fa-closed-captioning"></i></span>
               <span id="subtitle-available">字幕可用</span>
             </div>
           </div>
@@ -266,7 +267,7 @@
           <label for="api-key">API密钥</label>
           <div class="api-key-container">
             <input type="password" id="api-key" placeholder="输入您的API密钥">
-            <button class="toggle-visibility" id="toggle-key">👁️</button>
+            <button class="toggle-visibility" id="toggle-key"><i class="fas fa-eye"></i></button>
           </div>
           <div class="key-info">您的API密钥将安全地存储在本地</div>
         </div>
@@ -287,7 +288,7 @@
       </div>
       
       <button id="translate-btn" class="submit-btn">
-        <span class="submit-icon">🔄</span>翻译字幕
+        <span class="submit-icon icon"><i class="fas fa-language"></i></span>翻译字幕
       </button>
     </div>
   </div>

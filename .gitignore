@@ -1,0 +1,68 @@
+# 操作系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 编辑器和IDE文件
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.atom/
+.eclipse/
+.project
+.settings/
+
+# 依赖目录
+node_modules/
+bower_components/
+vendor/
+jspm_packages/
+
+# 日志文件
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 运行时数据
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# 临时文件
+.tmp/
+.temp/
+.cache/
+temp/
+tmp/
+
+# 打包输出
+dist/
+build/
+out/
+
+# 浏览器扩展特定
+*.crx
+*.pem
+*.zip
+*.xpi
+.web-extension-id
+
+# 环境变量文件
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# 其他
+coverage/
+.nyc_output/
+.grunt/
+.lock-wscript/
+*.tgz
+.yarn-integrity 
+api_documentation.txt

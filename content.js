@@ -13,20 +13,67 @@ let translationStatus = null; // 翻译状态
 
 /**
  * 加载SRT文件
+ * @param {string} videoId - 视频ID
  * @returns {Promise<string>} SRT文件内容
  */
-async function loadSrtFile() {
+async function loadSrtFile(videoId) {
   console.log('加载字幕文件...');
   
   try {
+    // 首先尝试从本地存储加载
+    const subtitles = await getSubtitleFromStorage(videoId);
+    if (subtitles) {
+      console.log('从本地存储加载字幕成功');
+      return subtitles;
+    }
+    
+    // 如果本地没有，使用测试文件（临时解决方案）
     const srtUrl = chrome.runtime.getURL('test.srt');
     const response = await fetch(srtUrl);
     const srtContent = await response.text();
-    console.log('字幕文件加载成功');
+    console.log('从测试文件加载字幕成功');
     return srtContent;
   } catch (error) {
     console.error('加载字幕文件失败:', error);
     return null;
+  }
+}
+
+/**
+ * 从本地存储获取字幕内容
+ * @param {string} videoId - 视频ID
+ * @returns {Promise<string|null>} 字幕内容或null
+ */
+async function getSubtitleFromStorage(videoId) {
+  if (!videoId) return null;
+  
+  try {
+    const key = `subtitle_${videoId}`;
+    const data = await chrome.storage.local.get([key]);
+    return data[key] || null;
+  } catch (error) {
+    console.error('从存储获取字幕失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 保存字幕到本地存储
+ * @param {string} videoId - 视频ID
+ * @param {string} srtContent - SRT字幕内容
+ * @returns {Promise<boolean>} 是否成功保存
+ */
+async function saveSubtitleToStorage(videoId, srtContent) {
+  if (!videoId || !srtContent) return false;
+  
+  try {
+    const key = `subtitle_${videoId}`;
+    await chrome.storage.local.set({ [key]: srtContent });
+    console.log(`字幕已保存到本地存储，键: ${key}`);
+    return true;
+  } catch (error) {
+    console.error('保存字幕到存储失败:', error);
+    return false;
   }
 }
 
@@ -45,6 +92,13 @@ function getVideoId() {
 async function initSubtitles() {
   console.log('初始化字幕...');
   
+  // 获取当前视频ID
+  const videoId = getVideoId();
+  if (!videoId) {
+    console.log('无法获取视频ID');
+    return false;
+  }
+  
   // 查找视频元素
   const videoElement = document.querySelector('video');
   if (!videoElement) {
@@ -53,9 +107,9 @@ async function initSubtitles() {
   }
   
   // 加载字幕文件
-  const srtContent = await loadSrtFile();
+  const srtContent = await loadSrtFile(videoId);
   if (!srtContent) {
-    console.error('字幕内容为空，无法初始化字幕');
+    console.log('未找到字幕内容，无法初始化字幕');
     return false;
   }
   
@@ -86,7 +140,7 @@ function checkAndProcessVideo() {
   
   // 如果视频ID变更，重新初始化字幕
   if (videoId && videoId !== currentVideoId) {
-    console.log(`检测到新视频: ${videoId}，重新初始化字幕`);
+    console.log(`检测到新视频: ${videoId}，准备初始化字幕`);
     
     // 停止现有字幕显示
     if (subtitleEngine) {
@@ -96,22 +150,25 @@ function checkAndProcessVideo() {
     
     currentVideoId = videoId;
     
-    // 初始化新字幕 - 增加等待时间，确保YouTube播放器完全加载
-    setTimeout(async () => {
-      console.log('尝试初始化字幕...');
-      const success = await initSubtitles();
-      if (!success) {
-        console.log('字幕初始化失败，稍后重试');
+    // 先检查是否有本地保存的字幕
+    getSubtitleFromStorage(videoId).then(subtitle => {
+      if (subtitle) {
+        console.log('找到本地保存的字幕，初始化中...');
         setTimeout(async () => {
-          console.log('第二次尝试初始化字幕...');
-          const retrySuccess = await initSubtitles();
-          if (!retrySuccess) {
-            console.log('第二次尝试仍然失败，最后一次尝试');
-            setTimeout(initSubtitles, 3000);  // 最后一次尝试
+          const success = await initSubtitles();
+          if (!success) {
+            console.log('使用本地字幕初始化失败，稍后重试');
+            setTimeout(initSubtitles, 3000);  // 再次尝试
           }
-        }, 3000);  // 3秒后重试
+        }, 2000);  // 等待视频加载
+      } else {
+        console.log('未找到本地保存的字幕，请使用插件翻译功能');
+        // 可以在页面上显示提示，提醒用户使用翻译功能
+        showTranslationStatus('未找到字幕，请点击插件图标翻译', false);
       }
-    }, 3000);  // 等待视频加载3秒
+    }).catch(error => {
+      console.error('检查本地字幕时出错:', error);
+    });
   }
 }
 
@@ -251,22 +308,51 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
-  // 处理翻译字幕请求
+  // 处理保存字幕文件请求
+  if (message.action === 'saveSubtitleFile') {
+    if (!message.data || !message.data.videoId || !message.data.srtContent) {
+      sendResponse({ success: false, message: '数据不完整' });
+      return true;
+    }
+    
+    const { videoId, srtContent } = message.data;
+    
+    // 保存字幕到本地存储
+    saveSubtitleToStorage(videoId, srtContent)
+      .then(success => {
+        sendResponse({ success, message: success ? '字幕已保存' : '保存字幕失败' });
+      })
+      .catch(error => {
+        console.error('保存字幕时出错:', error);
+        sendResponse({ success: false, message: error.message });
+      });
+    
+    return true; // 保持消息通道开放，以便异步响应
+  }
+  
+  // 处理应用字幕请求
+  if (message.action === 'applySubtitles') {
+    // 停止现有字幕显示
+    if (subtitleEngine) {
+      subtitleEngine.stop();
+      subtitleEngine = null;
+    }
+    
+    // 重新初始化字幕
+    initSubtitles().then(success => {
+      sendResponse({ success, message: success ? '字幕已应用' : '应用字幕失败' });
+    });
+    
+    return true; // 保持消息通道开放，以便异步响应
+  }
+  
+  // 处理翻译字幕请求 (兼容旧版本)
   if (message.action === 'translateSubtitles') {
-    // 这里只是UI演示，不实现实际功能
-    console.log('收到翻译请求，设置:', message.settings);
-    
     // 显示翻译中状态
-    showTranslationStatus('正在翻译字幕...', true);
+    showTranslationStatus('请使用新版翻译功能', false);
     
-    // 模拟成功响应
-    setTimeout(() => {
-      // 更新状态
-      showTranslationStatus('字幕翻译完成！');
-      
-      // 响应弹出窗口
-      sendResponse({ success: true });
-    }, 1000);
+    // 响应弹出窗口
+    sendResponse({ success: false, message: '请使用新版翻译功能' });
     
     return true; // 保持消息通道开放，以便异步响应
   }

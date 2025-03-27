@@ -23,7 +23,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["test.srt"],
+      "resources": ["test.srt", "*.srt"],
       "matches": ["*://www.youtube.com/*"]
     }
   ]

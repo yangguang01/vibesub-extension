@@ -103,12 +103,12 @@ class SubtitleEngine {
     this.subtitleContainer.style.width = '100%';
     this.subtitleContainer.style.textAlign = 'center';
     this.subtitleContainer.style.color = 'white';
-    this.subtitleContainer.style.fontSize = '24px'; // 增大字体
+    this.subtitleContainer.style.fontSize = '48px'; // 增大字体
     this.subtitleContainer.style.textShadow = '2px 2px 4px rgba(0,0,0,0.8)'; // 增强阴影
     this.subtitleContainer.style.zIndex = '9999'; // 大幅提高z-index
     this.subtitleContainer.style.padding = '10px';
     this.subtitleContainer.style.pointerEvents = 'none';
-    this.subtitleContainer.style.backgroundColor = 'rgba(0,0,0,0.3)'; // 添加半透明背景
+    this.subtitleContainer.style.backgroundColor = 'rgba(0,0,0,0)'; // 添加半透明背景
     this.subtitleContainer.style.display = 'block !important'; // 强制显示
     
     // 尝试不同的方法找到视频播放器容器

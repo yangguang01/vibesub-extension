@@ -32,9 +32,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentVideoId = null;
   let statusCheckInterval = null;
   
-  // 加载保存的设置
-  await loadSettings();
-  
   // 获取当前标签页的YouTube视频信息
   await getCurrentVideoInfo();
   
@@ -43,98 +40,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // 设置事件监听器
   translateBtn.addEventListener('click', submitTranslationTask);
-  modelSelect.addEventListener('change', saveSettings);
-  customPromptInput.addEventListener('change', saveSettings);
-  specialTermsInput.addEventListener('change', saveSettings);
-  targetLangSelect.addEventListener('change', saveSettings);
   
   // 开关按钮监听
   togglePrompt.addEventListener('change', function() {
     promptContainer.style.display = this.checked ? 'block' : 'none';
-    saveToggleState();
   });
   
   toggleTerms.addEventListener('change', function() {
     termsContainer.style.display = this.checked ? 'block' : 'none';
-    saveToggleState();
   });
-  
-  /**
-   * 加载保存的设置
-   */
-  async function loadSettings() {
-    try {
-      const settings = await chrome.storage.sync.get([
-        'translationModel', 
-        'customPrompt',
-        'specialTerms',
-        'targetLanguage',
-        'promptToggle',
-        'termsToggle'
-      ]);
-      
-      if (settings.translationModel) {
-        modelSelect.value = settings.translationModel;
-      }
-      
-      if (settings.customPrompt) {
-        customPromptInput.value = settings.customPrompt;
-      }
-      
-      if (settings.specialTerms) {
-        specialTermsInput.value = settings.specialTerms;
-      }
-      
-      if (settings.targetLanguage) {
-        targetLangSelect.value = settings.targetLanguage;
-      }
-      
-      // 恢复开关状态
-      if (settings.promptToggle !== undefined) {
-        togglePrompt.checked = settings.promptToggle;
-        promptContainer.style.display = settings.promptToggle ? 'block' : 'none';
-      }
-      
-      if (settings.termsToggle !== undefined) {
-        toggleTerms.checked = settings.termsToggle;
-        termsContainer.style.display = settings.termsToggle ? 'block' : 'none';
-      }
-    } catch (error) {
-      console.error('加载设置失败:', error);
-    }
-  }
-  
-  /**
-   * 保存设置
-   */
-  async function saveSettings() {
-    try {
-      await chrome.storage.sync.set({
-        translationModel: modelSelect.value,
-        customPrompt: customPromptInput.value,
-        specialTerms: specialTermsInput.value,
-        targetLanguage: targetLangSelect.value
-      });
-      console.log('设置已保存');
-    } catch (error) {
-      console.error('保存设置失败:', error);
-    }
-  }
-  
-  /**
-   * 保存开关状态
-   */
-  async function saveToggleState() {
-    try {
-      await chrome.storage.sync.set({
-        promptToggle: togglePrompt.checked,
-        termsToggle: toggleTerms.checked
-      });
-      console.log('开关状态已保存');
-    } catch (error) {
-      console.error('保存开关状态失败:', error);
-    }
-  }
   
   /**
    * 获取当前标签页的YouTube视频信息

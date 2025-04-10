@@ -31,6 +31,46 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentTaskId = null;
   let currentVideoId = null;
   let statusCheckInterval = null;
+
+  // 自适应窗口高度
+  function adjustPopupHeight() {
+    const contentHeight = document.body.scrollHeight;
+    // 设置一个最大高度(如果显示内容太多)
+    const maxHeight = 600;
+    const newHeight = Math.min(contentHeight, maxHeight);
+    
+    // 确保弹出窗口有一个最小高度
+    const minHeight = 400;
+    const finalHeight = Math.max(newHeight, minHeight);
+    
+    // 设置文档高度
+    document.body.style.height = finalHeight + 'px';
+    document.documentElement.style.height = finalHeight + 'px';
+    
+    console.log(`调整弹出窗口高度: ${finalHeight}px (内容高度: ${contentHeight}px)`);
+  }
+
+  // 在显示内容变化时调整高度
+  function updateUI() {
+    // 延迟执行，确保DOM已更新
+    setTimeout(adjustPopupHeight, 100);
+  }
+  
+  // 立即尝试获取videoId，不等待其他操作
+  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+    if (tabs[0] && tabs[0].url) {
+      try {
+        const url = new URL(tabs[0].url);
+        if (url.hostname.includes('youtube.com') && url.pathname === '/watch') {
+          currentVideoId = url.searchParams.get('v');
+          // 立即加载任务状态
+          if (currentVideoId) loadTaskStatus();
+        }
+      } catch (e) {
+        console.error('解析URL失败:', e);
+      }
+    }
+  });
   
   // 获取当前标签页的YouTube视频信息
   await getCurrentVideoInfo();
@@ -44,10 +84,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 开关按钮监听
   togglePrompt.addEventListener('change', function() {
     promptContainer.style.display = this.checked ? 'block' : 'none';
+    updateUI(); // 调整高度
   });
   
   toggleTerms.addEventListener('change', function() {
     termsContainer.style.display = this.checked ? 'block' : 'none';
+    updateUI(); // 调整高度
   });
   
   /**
@@ -249,18 +291,35 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = await chrome.storage.local.get([key]);
       const taskStatus = data[key];
       
-      if (taskStatus && taskStatus.status !== 'completed' && taskStatus.status !== 'failed') {
-        // 有正在进行的任务，恢复状态
+      if (taskStatus) {
+        // 有任务记录，恢复状态
         currentTaskId = taskStatus.taskId;
         progressSection.style.display = 'block';
-        updateProgress(taskStatus.progress || 0, getStatusText(taskStatus.status));
         
-        // 禁用按钮
-        translateBtn.disabled = true;
-        translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-spinner fa-spin"></i></span>翻译中...';
-        
-        // 开始查询任务状态
-        startStatusCheck();
+        if (taskStatus.status === 'completed') {
+          // 已完成的任务显示100%进度
+          updateProgress(1, '翻译完成！');
+          // 修改按钮为"应用字幕"
+          translateBtn.disabled = false;
+          translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-closed-captioning"></i></span>应用字幕';
+          // 修改按钮点击事件为应用字幕
+          translateBtn.removeEventListener('click', submitTranslationTask);
+          translateBtn.addEventListener('click', applyExistingSubtitles);
+        } else if (taskStatus.status === 'failed') {
+          // 失败的任务显示错误状态
+          updateProgress(0, '翻译失败');
+          // 按钮可点击，允许重试
+          translateBtn.disabled = false;
+          translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>翻译字幕';
+        } else {
+          // 进行中的任务，显示当前进度
+          updateProgress(taskStatus.progress || 0, getStatusText(taskStatus.status));
+          // 禁用按钮
+          translateBtn.disabled = true;
+          translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-spinner fa-spin"></i></span>翻译中...';
+          // 开始查询任务状态
+          startStatusCheck();
+        }
       }
     } catch (error) {
       console.error('加载任务状态失败:', error);
@@ -308,16 +367,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       const response = await fetch(`${API_SERVER}/api/tasks/${currentTaskId}`);
       
       if (!response.ok) {
-        throw new Error('获取任务状态失败');
+        // 显示错误状态到UI
+        updateProgress(0, `连接服务器出错 (${response.status})`);
+        
+        // 恢复按钮状态，允许用户重新尝试
+        translateBtn.disabled = false;
+        translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>翻译字幕';
+        
+        // 清除定时器
+        clearInterval(statusCheckInterval);
+        
+        return;
       }
       
       const data = await response.json();
       console.log('任务状态:', data);
       
-      // 更新进度显示
+      // 确保总是更新进度，即使是0
       updateProgress(
-        data.progress || 0,
-        getStatusText(data.status)
+        data.progress !== undefined ? data.progress : 0,
+        getStatusText(data.status || 'unknown')
       );
       
       // 保存最新状态
@@ -352,6 +421,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       
     } catch (error) {
       console.error('查询任务状态失败:', error);
+      // 网络错误时更新UI
+      updateProgress(0, '网络连接失败，请刷新页面重试');
+      
+      // 恢复按钮状态，允许用户重新尝试
+      translateBtn.disabled = false;
+      translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>翻译字幕';
+      
+      // 清除定时器
+      clearInterval(statusCheckInterval);
     }
   }
   
@@ -363,6 +441,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     progressFill.style.width = `${percentage}%`;
     progressPercentage.textContent = `${percentage}%`;
     progressStatus.textContent = statusText;
+    
+    // 更新UI高度
+    updateUI();
   }
   
   /**
@@ -379,7 +460,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'failed':
         return '翻译失败';
       default:
-        return '未知状态';
+        return '状态异常，请刷新页面';
     }
   }
   
@@ -433,4 +514,71 @@ document.addEventListener('DOMContentLoaded', async () => {
       alert(`下载字幕文件失败: ${error.message}`);
     }
   }
+
+  /**
+   * 从本地存储获取字幕内容
+   * @param {string} videoId - 视频ID
+   * @returns {Promise<string|null>} 字幕内容或null
+   */
+  async function getSubtitleFromStorage(videoId) {
+    if (!videoId) return null;
+    
+    try {
+      const key = `subtitle_${videoId}`;
+      const data = await chrome.storage.local.get([key]);
+      return data[key] || null;
+    } catch (error) {
+      console.error('从存储获取字幕失败:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 应用已存在的字幕
+   */
+  async function applyExistingSubtitles() {
+    try {
+      // 获取当前标签页
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const currentTab = tabs[0];
+      
+      // 通知内容脚本应用字幕
+      chrome.tabs.sendMessage(
+        currentTab.id,
+        { action: 'applySubtitles' },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('应用字幕失败:', chrome.runtime.lastError);
+            alert('应用字幕失败，请刷新页面重试');
+            return;
+          }
+          
+          if (response && response.success) {
+            // 关闭弹出窗口
+            window.close();
+          } else {
+            alert('应用字幕失败: ' + (response ? response.message : '未知错误'));
+          }
+        }
+      );
+    } catch (error) {
+      console.error('应用字幕失败:', error);
+      alert(`应用字幕失败: ${error.message}`);
+    }
+  }
+
+  // 初始调整高度
+  adjustPopupHeight();
+  
+  // 监听窗口大小变化
+  window.addEventListener('resize', adjustPopupHeight);
+  
+  // 观察DOM变化来调整高度
+  const observer = new MutationObserver(updateUI);
+  observer.observe(document.body, { 
+    childList: true, 
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['style', 'class']
+  });
 }); 

@@ -34,26 +34,34 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 自适应窗口高度
   function adjustPopupHeight() {
-    const contentHeight = document.body.scrollHeight;
-    // 设置一个最大高度(如果显示内容太多)
-    const maxHeight = 600;
-    const newHeight = Math.min(contentHeight, maxHeight);
+    // 计算实际内容高度，不包括内边距
+    const contentEl = document.getElementById('content');
+    const contentHeight = contentEl ? contentEl.scrollHeight : document.body.scrollHeight;
     
-    // 确保弹出窗口有一个最小高度
-    const minHeight = 400;
-    const finalHeight = Math.max(newHeight, minHeight);
+    // 确定最终高度（仅添加少量额外空间确保按钮完全可见）
+    const extraSpace = 10; // 减少从20px到10px
+    const finalHeight = contentHeight + extraSpace;
     
     // 设置文档高度
     document.body.style.height = finalHeight + 'px';
     document.documentElement.style.height = finalHeight + 'px';
+    document.documentElement.style.minHeight = finalHeight + 'px';
     
     console.log(`调整弹出窗口高度: ${finalHeight}px (内容高度: ${contentHeight}px)`);
   }
 
   // 在显示内容变化时调整高度
   function updateUI() {
-    // 延迟执行，确保DOM已更新
-    setTimeout(adjustPopupHeight, 100);
+    // 先立即调整一次
+    adjustPopupHeight();
+    
+    // 使用requestAnimationFrame确保在下一次重绘前调整
+    requestAnimationFrame(() => {
+      adjustPopupHeight();
+      
+      // 再延迟调整一次，以捕获任何异步变化
+      setTimeout(adjustPopupHeight, 100);
+    });
   }
   
   // 立即尝试获取videoId，不等待其他操作
@@ -74,12 +82,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // 获取当前标签页的YouTube视频信息
   await getCurrentVideoInfo();
+
+  // 设置事件监听器
+  translateBtn.addEventListener('click', submitTranslationTask);
   
   // 加载任务状态
   await loadTaskStatus();
-  
-  // 设置事件监听器
-  translateBtn.addEventListener('click', submitTranslationTask);
   
   // 开关按钮监听
   togglePrompt.addEventListener('change', function() {
@@ -284,12 +292,16 @@ document.addEventListener('DOMContentLoaded', async () => {
    * 加载任务状态并更新UI
    */
   async function loadTaskStatus() {
-    if (!currentVideoId) return;
+    if (!currentVideoId) {
+      console.log('无法获取状态');
+      return;
+  }
     
     try {
       const key = `task_status_${currentVideoId}`;
       const data = await chrome.storage.local.get([key]);
       const taskStatus = data[key];
+      console.log('可以获取状态:', taskStatus);
       
       if (taskStatus) {
         // 有任务记录，恢复状态
@@ -305,6 +317,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           // 修改按钮点击事件为应用字幕
           translateBtn.removeEventListener('click', submitTranslationTask);
           translateBtn.addEventListener('click', applyExistingSubtitles);
+          
         } else if (taskStatus.status === 'failed') {
           // 失败的任务显示错误状态
           updateProgress(0, '翻译失败');
@@ -361,7 +374,15 @@ document.addEventListener('DOMContentLoaded', async () => {
    * 查询任务状态
    */
   async function checkTaskStatus() {
-    if (!currentTaskId || !currentVideoId) return;
+    // 确保有有效的任务ID，如果已被清除则停止查询
+    if (!currentTaskId || !currentVideoId) {
+      console.log('无有效任务ID或视频ID，停止状态查询');
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
+      }
+      return;
+    }
     
     try {
       const response = await fetch(`${API_SERVER}/api/tasks/${currentTaskId}`);
@@ -376,6 +397,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // 清除定时器
         clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
         
         return;
       }
@@ -400,6 +422,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // 如果任务已完成或失败，停止查询
       if (data.status === 'completed') {
         clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
         
         // 下载字幕文件
         await downloadSubtitleFile();
@@ -410,6 +433,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
       } else if (data.status === 'failed') {
         clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
         
         // 显示错误信息
         alert(`翻译任务失败: ${data.error || '未知错误'}`);
@@ -430,6 +454,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // 清除定时器
       clearInterval(statusCheckInterval);
+      statusCheckInterval = null;
     }
   }
   
@@ -504,6 +529,9 @@ document.addEventListener('DOMContentLoaded', async () => {
               { action: 'applySubtitles' }
             );
             
+            // 清理任务状态 - 重置任务ID防止后台继续调用API
+            currentTaskId = null;
+            
             // 关闭弹出窗口
             window.close();
           }
@@ -538,6 +566,19 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   async function applyExistingSubtitles() {
     try {
+      // 显示加载状态
+      translateBtn.disabled = true;
+      translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-spinner fa-spin"></i></span>应用中...';
+      
+      // 清除任何可能在运行的任务检查
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
+      }
+      
+      // 重置任务ID，防止后台任务状态检查触发API调用
+      currentTaskId = null;
+      
       // 获取当前标签页
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
       const currentTab = tabs[0];
@@ -550,6 +591,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (chrome.runtime.lastError) {
             console.error('应用字幕失败:', chrome.runtime.lastError);
             alert('应用字幕失败，请刷新页面重试');
+            
+            // 恢复按钮状态
+            translateBtn.disabled = false;
+            translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-closed-captioning"></i></span>应用字幕';
             return;
           }
           
@@ -558,12 +603,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.close();
           } else {
             alert('应用字幕失败: ' + (response ? response.message : '未知错误'));
+            
+            // 恢复按钮状态
+            translateBtn.disabled = false;
+            translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-closed-captioning"></i></span>应用字幕';
           }
         }
       );
     } catch (error) {
       console.error('应用字幕失败:', error);
       alert(`应用字幕失败: ${error.message}`);
+      
+      // 恢复按钮状态
+      translateBtn.disabled = false;
+      translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-closed-captioning"></i></span>应用字幕';
     }
   }
 

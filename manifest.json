@@ -19,8 +19,13 @@
   ],
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "tabs"
   ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "web_accessible_resources": [
     {
       "resources": ["test.srt", "*.srt"],

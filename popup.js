@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 获取DOM元素
   const videoTitleEl = document.getElementById('video-title');
   const estimatedTimeEl = document.getElementById('estimated-time');
+  const channelNameEl = document.getElementById('channel-name');
   const modelSelect = document.getElementById('model');
   const customPromptInput = document.getElementById('custom-prompt');
   const specialTermsInput = document.getElementById('special-terms');
@@ -21,6 +22,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const progressPercentage = document.getElementById('progress-percentage');
   const progressStatus = document.getElementById('progress-status');
   
+  // 登录相关元素
+  const loginLink = document.getElementById('login-link');
+  const loginText = document.getElementById('login-text');
+  const userDropdown = document.getElementById('user-dropdown');
+  const logoutBtn = document.getElementById('logout-btn');
+  
   // 开关按钮相关元素
   const togglePrompt = document.getElementById('toggle-prompt');
   const toggleTerms = document.getElementById('toggle-terms');
@@ -30,6 +37,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 当前任务和视频信息
   let currentTaskId = null;
   let currentVideoId = null;
+  
+  // 用户信息
+  let userInfo = null;
 
   // 自适应窗口高度
   function adjustPopupHeight() {
@@ -87,6 +97,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // 加载任务状态
   await loadTaskStatus();
+  
+  // 检查登录状态
+  await checkLoginStatus();
+  
+  // 设置登录相关事件监听
+  setupLoginEvents();
   
   // 开关按钮监听
   togglePrompt.addEventListener('change', function() {
@@ -153,9 +169,20 @@ document.addEventListener('DOMContentLoaded', async () => {
    * 更新视频信息显示
    */
   function updateVideoInfo(videoInfo) {
+    console.log('收到视频信息:', videoInfo);
+    
     // 更新标题
     if (videoInfo.title) {
       videoTitleEl.textContent = videoInfo.title;
+    }
+    
+    // 更新频道名称
+    if (videoInfo.channelName) {
+      console.log('设置频道名称:', videoInfo.channelName);
+      channelNameEl.textContent = videoInfo.channelName;
+    } else {
+      console.log('没有收到频道名称或为空');
+      channelNameEl.textContent = '--';
     }
     
     // 计算并显示预估翻译用时
@@ -552,4 +579,121 @@ document.addEventListener('DOMContentLoaded', async () => {
     attributes: true,
     attributeFilter: ['style', 'class']
   });
+  
+  /**
+   * 检查用户登录状态
+   */
+  async function checkLoginStatus() {
+    try {
+      // 从存储中获取用户信息
+      const data = await chrome.storage.local.get(['user_info']);
+      userInfo = data.user_info;
+      
+      if (userInfo) {
+        // 已登录，显示用户信息
+        updateLoginStatus(true);
+      } else {
+        // 未登录
+        updateLoginStatus(false);
+      }
+    } catch (error) {
+      console.error('检查登录状态失败:', error);
+      // 默认显示未登录状态
+      updateLoginStatus(false);
+    }
+  }
+  
+  /**
+   * 更新登录状态UI
+   * @param {boolean} isLoggedIn - 是否已登录
+   */
+  function updateLoginStatus(isLoggedIn) {
+    if (isLoggedIn && userInfo) {
+      // 已登录状态
+      loginText.innerHTML = `${userInfo.username} <small>(今日额度: ${userInfo.daily_quota})</small>`;
+      loginLink.href = 'https://tube-trans.com/account'; // 账户管理页面URL（待更新）
+    } else {
+      // 未登录状态
+      loginText.textContent = '未登录';
+      loginLink.href = 'https://youtube.com'; // 临时使用youtube地址
+    }
+    // 调整UI高度
+    updateUI();
+  }
+  
+  /**
+   * 设置登录相关事件监听
+   */
+  function setupLoginEvents() {
+    // 登录链接点击
+    loginLink.addEventListener('click', function(e) {
+      e.preventDefault(); // 阻止默认行为
+      
+      if (userInfo) {
+        // 已登录状态，点击显示或隐藏下拉菜单
+        userDropdown.style.display = userDropdown.style.display === 'none' ? 'block' : 'none';
+      } else {
+        // 未登录状态，打开新标签页到登录页面
+        chrome.tabs.create({ url: 'https://youtube.com' }); // 临时使用youtube作为登录页
+        window.close(); // 关闭弹出窗口
+      }
+    });
+    
+    // 登出按钮点击
+    logoutBtn.addEventListener('click', async function(e) {
+      e.preventDefault();
+      await logout();
+    });
+    
+    // 点击其他区域关闭下拉菜单
+    document.addEventListener('click', function(e) {
+      if (userDropdown.style.display === 'block' && !loginLink.contains(e.target) && !userDropdown.contains(e.target)) {
+        userDropdown.style.display = 'none';
+      }
+    });
+  }
+  
+  /**
+   * 用户登出
+   */
+  async function logout() {
+    try {
+      // 清除用户信息
+      await chrome.storage.local.remove(['user_info']);
+      userInfo = null;
+      
+      // 更新UI为未登录状态
+      updateLoginStatus(false);
+      
+      // 隐藏下拉菜单
+      userDropdown.style.display = 'none';
+    } catch (error) {
+      console.error('登出失败:', error);
+    }
+  }
+  
+  /**
+   * 临时测试函数：模拟用户登录状态
+   * 仅用于开发测试，实际使用时应删除
+   */
+  async function testSetLoginStatus() {
+    // 模拟用户数据
+    const testUserInfo = {
+      username: '测试用户',
+      daily_quota: 500,
+      // 其他用户信息...
+    };
+    
+    // 保存到存储
+    await chrome.storage.local.set({ 'user_info': testUserInfo });
+    
+    // 更新当前变量和UI
+    userInfo = testUserInfo;
+    updateLoginStatus(true);
+    
+    console.log('已设置测试登录状态');
+  }
+  
+  // 双击logo区域触发测试登录（仅用于开发测试）
+  document.querySelector('.logo').addEventListener('dblclick', testSetLoginStatus);
 });

@@ -181,6 +181,29 @@ function getVideoInfo() {
   const titleElement = document.querySelector('h1.ytd-watch-metadata');
   const title = titleElement ? titleElement.textContent.trim() : '未知标题';
   
+  // 尝试不同的选择器获取频道名称
+  let channelName = '';
+  
+  // 方法1: 尝试简单的选择器
+  const channelElement1 = document.querySelector('#channel-name');
+  if (channelElement1) {
+    channelName = channelElement1.textContent.trim();
+    console.log('方法1获取频道名称成功:', channelName);
+  } else {
+    console.log('方法1获取频道名称失败');
+  }
+  
+  // 方法2: 如果方法1失败，尝试另一个选择器
+  if (!channelName) {
+    const channelElement2 = document.querySelector('.ytd-channel-name');
+    if (channelElement2) {
+      channelName = channelElement2.textContent.trim();
+      console.log('方法2获取频道名称成功:', channelName);
+    } else {
+      console.log('方法2获取频道名称失败');
+    }
+  }
+  
   // 获取视频缩略图
   const videoId = getVideoId();
   const thumbnail = videoId ? `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg` : '';
@@ -192,13 +215,17 @@ function getVideoInfo() {
   // 检查是否有字幕
   const hasSubtitles = document.querySelector('.ytp-subtitles-button[aria-pressed="true"]') !== null;
   
-  return {
+  const result = {
     title,
+    channelName,
     thumbnail,
     duration,
     hasSubtitles,
     videoId
   };
+  
+  console.log('视频信息:', result);
+  return result;
 }
 
 /**
@@ -303,8 +330,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   // 处理获取视频信息请求
   if (message.action === 'getVideoInfo') {
-    const videoInfo = getVideoInfo();
-    sendResponse({ videoInfo });
+    try {
+      console.log('正在获取视频信息...');
+      
+      // 获取频道名称
+      let channelName = '未知频道';
+      const channelElement = document.querySelector('#channel-name #text a');
+      if (channelElement) {
+        channelName = channelElement.textContent;
+        console.log('找到频道名称:', channelName);
+      } else {
+        console.log('未找到频道名称元素');
+      }
+      
+      // 构建视频信息对象
+      const videoInfo = {
+        title: document.querySelector('h1.ytd-watch-metadata')?.textContent.trim() || '未知标题',
+        channelName: channelName,
+        duration: document.querySelector('video')?.duration || 0,
+        videoId: getVideoId()
+      };
+      
+      console.log('返回视频信息:', videoInfo);
+      sendResponse({ videoInfo });
+    } catch (error) {
+      console.error('获取视频信息时出错:', error);
+      sendResponse({ error: '处理请求时出错' });
+    }
     return true;
   }
   

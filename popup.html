@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tube Trans - AI精翻字幕</title>
+  <title>VibeSub</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     :root {
@@ -98,8 +98,16 @@
       align-items: center;
     }
     
-    .duration-icon, .estimated-icon {
+    .duration-icon, .estimated-icon, .channel-icon {
       margin-right: 4px;
+    }
+    
+    .channel-info {
+      display: flex;
+      align-items: center;
+      font-size: 14px;
+      color: #666;
+      font-weight: 500;
     }
     
     .subtitle-status {
@@ -342,13 +350,75 @@
       display: none;
       margin-top: 8px;
     }
+    
+    /* 登录状态样式 */
+    .login-status {
+      margin-left: auto;
+      position: relative;
+    }
+    
+    .login-link {
+      display: flex;
+      align-items: center;
+      font-size: 13px;
+      color: #666;
+      text-decoration: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+    
+    .login-link:hover {
+      background-color: #f0f0f0;
+      color: var(--primary-color);
+    }
+    
+    .login-icon {
+      margin-right: 5px;
+      font-size: 16px;
+      color: var(--primary-color);
+    }
+    
+    .user-dropdown {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background-color: white;
+      border-radius: 4px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      padding: 6px 0;
+      min-width: 120px;
+      z-index: 10;
+    }
+    
+    .dropdown-item {
+      display: block;
+      padding: 6px 12px;
+      color: #555;
+      text-decoration: none;
+      font-size: 13px;
+    }
+    
+    .dropdown-item:hover {
+      background-color: #f5f5f5;
+      color: var(--primary-color);
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
       <img src="icon.png" alt="Tube Trans Logo" class="logo">
-      <h1 class="title">Tube Trans - AI精翻字幕</h1>
+      <h1 class="title">VibeSub</h1>
+      <div id="login-status" class="login-status">
+        <a href="#" id="login-link" class="login-link">
+          <span class="login-icon icon"><i class="fas fa-user-circle"></i></span>
+          <span id="login-text">未登录</span>
+        </a>
+        <div id="user-dropdown" class="user-dropdown" style="display: none;">
+          <a href="#" id="logout-btn" class="dropdown-item">退出登录</a>
+        </div>
+      </div>
     </div>
     
     <div id="content">
@@ -357,10 +427,13 @@
         <h2 id="video-title" class="video-title">加载中...</h2>
         <div class="video-meta">
           <div class="meta-row">
-            <div class="estimated-time">
+            <div class="channel-info">
+              <span id="channel-name">--</span>
+            </div>
+            <!-- <div class="estimated-time">
               <span class="estimated-icon icon"><i class="fas fa-hourglass-half"></i></span>
               <span>预估翻译用时: </span><span id="estimated-time">--</span>
-            </div>
+            </div> -->
           </div>
         </div>
       </div>

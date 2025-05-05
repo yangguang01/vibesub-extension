@@ -22,6 +22,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const progressPercentage = document.getElementById('progress-percentage');
   const progressStatus = document.getElementById('progress-status');
   
+  // 翻译策略相关元素
+  const strategiesSection = document.getElementById('translation-strategies');
+  const strategiesStatus = document.getElementById('strategies-status');
+  const strategiesList = document.getElementById('strategies-list');
+  
+  // 测试按钮
+  const testStrategiesBtn = document.getElementById('test-strategies-btn');
+  
   // 登录相关元素
   const loginLink = document.getElementById('login-link');
   const loginText = document.getElementById('login-text');
@@ -93,7 +101,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   await getCurrentVideoInfo();
 
   // 设置事件监听器
-  translateBtn.addEventListener('click', submitTranslationTask);
+  // translateBtn.addEventListener('click', submitTranslationTask);
+  
+  // 设置翻译按钮的点击事件
+  translateBtn.addEventListener('click', function(event) {
+    // 按住Ctrl或Command键点击时运行测试功能
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      testTranslationStrategies();
+    } else {
+      // 正常点击时执行原来的任务提交
+      submitTranslationTask();
+    }
+  });
   
   // 加载任务状态
   await loadTaskStatus();
@@ -103,6 +123,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // 设置登录相关事件监听
   setupLoginEvents();
+  
+  // 设置测试按钮点击事件
+  if (testStrategiesBtn) {
+    testStrategiesBtn.addEventListener('click', testTranslationStrategies);
+  }
   
   // 开关按钮监听
   togglePrompt.addEventListener('change', function() {
@@ -258,6 +283,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       progressSection.style.display = 'block';
       updateProgress(0, '准备中...');
       
+      // 显示翻译策略区域（初始状态为"思考中..."）
+      strategiesSection.style.display = 'block';
+      strategiesStatus.style.display = 'block';
+      strategiesList.style.display = 'none';
+      
       // 构建请求数据
       const requestData = {
         youtube_url: currentTab.url,
@@ -348,6 +378,13 @@ document.addEventListener('DOMContentLoaded', async () => {
               getStatusText(message.status || 'unknown')
             );
             
+            // 处理翻译策略数据
+            if (message.translationStrategies) {
+              displayTranslationStrategies(message.translationStrategies);
+              // 保存翻译策略到存储
+              updateTranslationStrategies(currentVideoId, message.translationStrategies);
+            }
+            
             // 如果任务完成或失败，更新UI
             if (message.status === 'completed') {
               // 修改按钮为"应用字幕"
@@ -393,6 +430,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 有任务记录，恢复状态
         currentTaskId = taskStatus.taskId;
         progressSection.style.display = 'block';
+        
+        // 如果有翻译策略数据，恢复显示
+        if (taskStatus.translationStrategies) {
+          displayTranslationStrategies(taskStatus.translationStrategies);
+        }
         
         if (taskStatus.status === 'completed') {
           // 已完成的任务显示100%进度
@@ -467,6 +509,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   /**
+   * 更新翻译策略数据
+   * @param {string} videoId - 视频ID
+   * @param {Object} strategies - 翻译策略数据
+   */
+  async function updateTranslationStrategies(videoId, strategies) {
+    if (!videoId) return;
+    
+    try {
+      // 获取当前任务状态
+      const key = `task_status_${videoId}`;
+      const data = await chrome.storage.local.get([key]);
+      const taskStatus = data[key] || {};
+      
+      // 更新策略数据
+      taskStatus.translationStrategies = strategies;
+      
+      // 保存回存储
+      await chrome.storage.local.set({ [key]: taskStatus });
+      console.log(`已更新翻译策略: ${key}`, strategies);
+    } catch (error) {
+      console.error('更新翻译策略失败:', error);
+    }
+  }
+  
+  /**
    * 更新进度显示
    */
   function updateProgress(progress, statusText) {
@@ -474,6 +541,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     progressFill.style.width = `${percentage}%`;
     progressPercentage.textContent = `${percentage}%`;
     progressStatus.textContent = statusText;
+    
+    // 更新UI高度
+    updateUI();
+  }
+  
+  /**
+   * 显示翻译策略
+   * @param {Object} data - 包含翻译策略的数据对象
+   */
+  function displayTranslationStrategies(data) {
+    // 显示策略区域
+    strategiesSection.style.display = 'block';
+    
+    // 如果没有策略数据，保持"思考中..."显示
+    if (!data || !data.translation_strategies || data.translation_strategies.length === 0) {
+      return;
+    }
+    
+    // 隐藏加载状态，显示策略列表
+    strategiesStatus.style.display = 'none';
+    strategiesList.style.display = 'block';
+    
+    // 清空现有策略列表
+    strategiesList.innerHTML = '';
+    
+    // 添加策略条目
+    data.translation_strategies.forEach(strategy => {
+      const li = document.createElement('li');
+      li.textContent = strategy;
+      strategiesList.appendChild(li);
+    });
     
     // 更新UI高度
     updateUI();
@@ -696,4 +794,54 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // 双击logo区域触发测试登录（仅用于开发测试）
   document.querySelector('.logo').addEventListener('dblclick', testSetLoginStatus);
+  
+  /**
+   * 测试翻译策略显示
+   * 仅用于开发测试
+   */
+  function testTranslationStrategies() {
+    console.log('启动翻译策略测试...');
+    
+    // 测试数据
+    const testData = {
+      translation_strategies: [
+        "准确翻译和解释关键技术名词，特别是'Transformer'应直接采用音译'变换器'，并首次出现时给出简要定义。",
+        "保持教学和学术风格，注意逻辑性和条理性，把课程讲解的结构清晰地传达出来。",
+        "遇到Stanford的专有课程内容或案例，结合上下文查找权威译法或作简要背景说明。",
+        "special_terms_strategies: 例如'Transformer'译为'变换器模型'，'self-attention'译为'自注意力机制'，'encoder-decoder'译为'编码器-解码器'结构；课程编号和章节请保留原文，如'CS25'。"
+      ]
+    };
+    
+    // 先显示"思考中..."状态
+    strategiesSection.style.display = 'block';
+    strategiesStatus.style.display = 'block';
+    strategiesList.style.display = 'none';
+    strategiesStatus.textContent = "思考中...";
+    
+    console.log('显示"思考中..."状态');
+    
+    // 延迟2秒后显示策略数据，模拟加载过程
+    setTimeout(() => {
+      console.log('准备显示翻译策略数据...');
+      
+      // 清空现有策略列表
+      strategiesList.innerHTML = '';
+      
+      // 添加策略条目
+      testData.translation_strategies.forEach(strategy => {
+        const li = document.createElement('li');
+        li.textContent = strategy;
+        strategiesList.appendChild(li);
+      });
+      
+      // 显示策略列表，隐藏加载状态
+      strategiesStatus.style.display = 'none';
+      strategiesList.style.display = 'block';
+      
+      console.log('已显示测试翻译策略数据');
+      
+      // 更新UI高度
+      updateUI();
+    }, 2000);
+  }
 });

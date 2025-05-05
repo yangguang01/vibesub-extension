@@ -403,6 +403,37 @@
       background-color: #f5f5f5;
       color: var(--primary-color);
     }
+    
+    /* 翻译策略相关样式 */
+    .strategies-section {
+      margin-bottom: 8px;
+    }
+    
+    .strategies-container {
+      font-size: 13px;
+      color: #555;
+    }
+    
+    .strategies-status {
+      margin: 5px 0;
+      font-style: italic;
+      color: #777;
+    }
+    
+    .strategies-list {
+      padding-left: 20px;
+      margin: 8px 0;
+    }
+    
+    .strategies-list li {
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+    
+    .special-terms {
+      color: var(--primary-color);
+      font-weight: 500;
+    }
   </style>
 </head>
 <body>
@@ -438,51 +469,18 @@
         </div>
       </div>
       
-      <!-- 翻译设置区域临时注释
-      <div class="settings-section">
-        <h3 class="section-title">翻译设置</h3>
-        
-        <div class="form-group">
-          <label for="model">翻译模型</label>
-          <select id="model">
-            <option value="gpt" selected>ChatGPT</option>
-            <option value="deepseek">Deepseek</option>
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label for="target-lang">目标语言</label>
-          <select id="target-lang">
-            <option value="zh-CN" selected>中文 (简体中文)</option>
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <div class="toggle-switch">
-            <label for="toggle-prompt">自定义Prompt</label>
-            <label class="switch">
-              <input type="checkbox" id="toggle-prompt">
-              <span class="slider"></span>
-            </label>
-          </div>
-          <div id="prompt-container" class="hidden-input">
-            <textarea id="custom-prompt" placeholder="简要描述视频内容，帮助翻译更准确" rows="2"></textarea>
+      <!-- 翻译策略区域 -->
+      <div id="translation-strategies" class="translation-progress" style="display: none;">
+        <div class="strategies-section">
+          <h3 class="section-title">翻译策略</h3>
+          <div id="strategies-container" class="strategies-container">
+            <p id="strategies-status" class="strategies-status">思考中...</p>
+            <ul id="strategies-list" class="strategies-list" style="display: none;">
+              <!-- 策略条目将在这里动态加载 -->
+            </ul>
           </div>
         </div>
-        
-        <div class="form-group">
-          <div class="toggle-switch">
-            <label for="toggle-terms">专有术语列表</label>
-            <label class="switch">
-              <input type="checkbox" id="toggle-terms">
-              <span class="slider"></span>
-            </label>
-          </div>
-          <div id="terms-container" class="hidden-input">
-            <textarea id="special-terms" placeholder="保留不翻译的专业词汇，用逗号分隔" rows="2"></textarea>
-          </div>
-        </div>
-      </div> -->
+      </div>
       
       <div id="translation-progress" class="translation-progress" style="display: none;">
         <div class="progress-section">
@@ -501,6 +499,11 @@
       
       <button id="translate-btn" class="submit-btn">
         <span class="submit-icon icon"><i class="fas fa-language"></i></span>翻译字幕
+      </button>
+      
+      <!-- 仅开发测试使用的按钮 -->
+      <button id="test-strategies-btn" class="submit-btn" style="margin-top: 10px; background-color: #f5a623;">
+        <span class="submit-icon icon"><i class="fas fa-flask"></i></span>测试翻译策略
       </button>
     </div>
   </div>

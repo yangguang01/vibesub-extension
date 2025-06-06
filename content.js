@@ -335,7 +335,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       
       // 获取频道名称
       let channelName = '未知频道';
-      const channelElement = document.querySelector('#channel-name #text a');
+      const channelElement = document.querySelector('ytd-channel-name yt-formatted-string#text a');
       if (channelElement) {
         channelName = channelElement.textContent;
         console.log('找到频道名称:', channelName);

@@ -4,8 +4,7 @@
  */
 
 // API服务器地址
-const API_SERVER = 'https://tube-trans-server-v2-565406642878.us-west1.run.app';
-
+const API_SERVER = 'https://api.rxaigc.com';
 
 document.addEventListener('DOMContentLoaded', async () => {
   // 获取DOM元素
@@ -130,15 +129,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   // 开关按钮监听
-  togglePrompt.addEventListener('change', function() {
-    promptContainer.style.display = this.checked ? 'block' : 'none';
-    updateUI(); // 调整高度
-  });
+  // togglePrompt.addEventListener('change', function() {
+  //   promptContainer.style.display = this.checked ? 'block' : 'none';
+  //   updateUI(); // 调整高度
+  // });
   
-  toggleTerms.addEventListener('change', function() {
-    termsContainer.style.display = this.checked ? 'block' : 'none';
-    updateUI(); // 调整高度
-  });
+  // toggleTerms.addEventListener('change', function() {
+  //   termsContainer.style.display = this.checked ? 'block' : 'none';
+  //   updateUI(); // 调整高度
+  // });
   
   /**
    * 获取当前标签页的YouTube视频信息
@@ -211,9 +210,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     // 计算并显示预估翻译用时
-    if (videoInfo.duration) {
-      estimatedTimeEl.textContent = calculateEstimatedTime(videoInfo.duration);
-    }
+    // if (videoInfo.duration) {
+    //   estimatedTimeEl.textContent = calculateEstimatedTime(videoInfo.duration);
+    // }
   }
   
   /**
@@ -255,6 +254,19 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   async function submitTranslationTask() {
     try {
+      // 先检查登录状态
+      await checkLoginStatus();
+      if (!userInfo) {
+        // 用户未登录，提示登录
+        const shouldLogin = confirm('需要先登录才能使用翻译功能。是否前往登录页面？');
+        if (shouldLogin) {
+          chrome.tabs.create({ url: 'https://auth.rxaigc.com' });
+          window.close();
+        }
+        return;
+      }
+      console.log('请求地址：', `${API_SERVER}/api/tasks`);
+
       // 获取当前标签页
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
       const currentTab = tabs[0];
@@ -283,32 +295,47 @@ document.addEventListener('DOMContentLoaded', async () => {
       progressSection.style.display = 'block';
       updateProgress(0, '准备中...');
       
-      // 显示翻译策略区域（初始状态为"思考中..."）
-      strategiesSection.style.display = 'block';
-      strategiesStatus.style.display = 'block';
-      strategiesList.style.display = 'none';
-      
       // 构建请求数据
       const requestData = {
         youtube_url: currentTab.url,
-        custom_prompt: customPromptInput.value,
-        special_terms: specialTermsInput.value,
+        // custom_prompt: customPromptInput.value,
+        // special_terms: specialTermsInput.value,
         content_name: document.getElementById('video-title').textContent,
-        language: targetLangSelect.value
+        channel_name: document.getElementById('channel-name').textContent,
+        // language: targetLangSelect.value
       };
       
       console.log('发送请求到服务端:', requestData);
       
       // 创建翻译任务
-      const response = await fetch(`${API_SERVER}/api/translate`, {
+      const response = await fetch(`${API_SERVER}/api/tasks`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        credentials: 'include',
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(requestData)
       });
       
       console.log('服务端响应状态:', response.status);
+      
+      // 处理401未授权错误
+      if (response.status === 401) {
+        // 清除本地用户信息
+        await chrome.storage.local.remove(['user_info']);
+        userInfo = null;
+        updateLoginStatus(false);
+        
+        // 恢复按钮状态
+        translateBtn.disabled = false;
+        translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>翻译字幕';
+        
+        // 提示用户登录
+        const shouldLogin = confirm('登录状态已过期，需要重新登录。是否前往登录页面？');
+        if (shouldLogin) {
+          chrome.tabs.create({ url: 'https://auth.rxaigc.com' });
+          window.close();
+        }
+        return;
+      }
       
       const data = await response.json();
       console.log('服务端响应数据:', data);
@@ -381,8 +408,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 处理翻译策略数据
             if (message.translationStrategies) {
               displayTranslationStrategies(message.translationStrategies);
-              // 保存翻译策略到存储
-              updateTranslationStrategies(currentVideoId, message.translationStrategies);
             }
             
             // 如果任务完成或失败，更新UI
@@ -425,6 +450,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = await chrome.storage.local.get([key]);
       const taskStatus = data[key];
       console.log('从存储加载任务状态:', taskStatus);
+
+      // 加载并恢复翻译策略
+      const strategyFlagKey = `has_translation_strategies_${currentVideoId}`;
+      const strategyDataKey = `translation_strategies_${currentVideoId}`;
+      const strategyData = await chrome.storage.local.get([strategyFlagKey, strategyDataKey]);
+      console.log('从存储加载翻译策略:', strategyData);
       
       if (taskStatus) {
         // 有任务记录，恢复状态
@@ -432,8 +463,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         progressSection.style.display = 'block';
         
         // 如果有翻译策略数据，恢复显示
-        if (taskStatus.translationStrategies) {
-          displayTranslationStrategies(taskStatus.translationStrategies);
+        // if (taskStatus.translationStrategies) {
+        //   displayTranslationStrategies(taskStatus.translationStrategies);
+        // }
+        if (strategyData[strategyFlagKey]) {
+          displayTranslationStrategies(strategyData[strategyDataKey]);
         }
         
         if (taskStatus.status === 'completed') {
@@ -513,21 +547,16 @@ document.addEventListener('DOMContentLoaded', async () => {
    * @param {string} videoId - 视频ID
    * @param {Object} strategies - 翻译策略数据
    */
-  async function updateTranslationStrategies(videoId, strategies) {
+  async function updateTranslationStrategies(videoId, strategies_data) {
     if (!videoId) return;
-    
+    console.log('开始在任务状态中写入翻译策略', strategies_data);
+
     try {
-      // 获取当前任务状态
-      const key = `task_status_${videoId}`;
-      const data = await chrome.storage.local.get([key]);
-      const taskStatus = data[key] || {};
-      
-      // 更新策略数据
-      taskStatus.translationStrategies = strategies;
-      
-      // 保存回存储
-      await chrome.storage.local.set({ [key]: taskStatus });
-      console.log(`已更新翻译策略: ${key}`, strategies);
+      await chrome.storage.local.set({
+        [`translation_strategies_${videoId}`]: strategies_data,
+        [`has_translation_strategies_${videoId}`]: true
+      });
+      console.log(`翻译策略已写入: ${videoId}`, strategies_data);
     } catch (error) {
       console.error('更新翻译策略失败:', error);
     }
@@ -551,13 +580,21 @@ document.addEventListener('DOMContentLoaded', async () => {
    * @param {Object} data - 包含翻译策略的数据对象
    */
   function displayTranslationStrategies(data) {
-    // 显示策略区域
-    strategiesSection.style.display = 'block';
-    
-    // 如果没有策略数据，保持"思考中..."显示
-    if (!data || !data.translation_strategies || data.translation_strategies.length === 0) {
+    // 记录传入的翻译策略数据
+    console.log('传入的翻译策略数据:', data);
+
+    // 直接获取translation_strategies数组
+    const strategies = data.strategies || [];
+    console.log('获取到的翻译策略数据:', strategies);
+
+    // 如果没有策略数据，不显示翻译策略区域
+    if (!strategies || strategies.length === 0) {
+      console.log('翻译策略数据格式有问题或为空，不显示策略区域');
       return;
     }
+    
+    // 通过验证后，显示策略区域
+    strategiesSection.style.display = 'block';
     
     // 隐藏加载状态，显示策略列表
     strategiesStatus.style.display = 'none';
@@ -566,13 +603,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 清空现有策略列表
     strategiesList.innerHTML = '';
     
+    console.log('开始写入翻译策略数据');
     // 添加策略条目
-    data.translation_strategies.forEach(strategy => {
+    strategies.forEach(strategy => {
       const li = document.createElement('li');
       li.textContent = strategy;
       strategiesList.appendChild(li);
     });
-    
+    console.log('写入翻译策略数据完成');
     // 更新UI高度
     updateUI();
   }
@@ -585,7 +623,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       case 'pending':
         return '等待处理...';
       case 'processing':
-        return '正在处理...';
+        return '思考翻译策略...';
+      case 'strategies_ready':
+        return '正在翻译...';
       case 'completed':
         return '翻译完成！';
       case 'failed':
@@ -683,20 +723,38 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   async function checkLoginStatus() {
     try {
-      // 从存储中获取用户信息
-      const data = await chrome.storage.local.get(['user_info']);
-      userInfo = data.user_info;
+      // 检查.rxaigc.com域名下的session cookie
+      const cookies = await chrome.cookies.getAll({
+        domain: '.rxaigc.com',
+        name: 'session'
+      });
       
-      if (userInfo) {
-        // 已登录，显示用户信息
+      const sessionCookie = cookies.find(cookie => cookie.name === 'session');
+      
+      if (sessionCookie && sessionCookie.value) {
+        // 有session cookie，认为已登录
+        // 从存储中获取用户信息（如果有的话）
+        const data = await chrome.storage.local.get(['user_info']);
+        userInfo = data.user_info;
+        
+        if (!userInfo) {
+          // 如果没有用户信息，使用默认信息
+          userInfo = {
+            username: '已登录用户',
+            daily_quota: '--'
+          };
+        }
+        
         updateLoginStatus(true);
       } else {
-        // 未登录
+        // 没有session cookie，未登录
+        userInfo = null;
         updateLoginStatus(false);
       }
     } catch (error) {
       console.error('检查登录状态失败:', error);
       // 默认显示未登录状态
+      userInfo = null;
       updateLoginStatus(false);
     }
   }
@@ -709,11 +767,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (isLoggedIn && userInfo) {
       // 已登录状态
       loginText.innerHTML = `${userInfo.username} <small>(今日额度: ${userInfo.daily_quota})</small>`;
-      loginLink.href = 'https://tube-trans.com/account'; // 账户管理页面URL（待更新）
+      loginLink.href = 'https://auth.rxaigc.com'; // 账户管理页面
     } else {
       // 未登录状态
       loginText.textContent = '未登录';
-      loginLink.href = 'https://youtube.com'; // 临时使用youtube地址
+      loginLink.href = 'https://auth.rxaigc.com'; // 登录页面
     }
     // 调整UI高度
     updateUI();
@@ -732,7 +790,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         userDropdown.style.display = userDropdown.style.display === 'none' ? 'block' : 'none';
       } else {
         // 未登录状态，打开新标签页到登录页面
-        chrome.tabs.create({ url: 'https://youtube.com' }); // 临时使用youtube作为登录页
+        chrome.tabs.create({ url: 'https://auth.rxaigc.com' });
         window.close(); // 关闭弹出窗口
       }
     });
@@ -799,49 +857,84 @@ document.addEventListener('DOMContentLoaded', async () => {
    * 测试翻译策略显示
    * 仅用于开发测试
    */
-  function testTranslationStrategies() {
+  async function testTranslationStrategies() {
     console.log('启动翻译策略测试...');
     
-    // 测试数据
-    const testData = {
-      translation_strategies: [
-        "准确翻译和解释关键技术名词，特别是'Transformer'应直接采用音译'变换器'，并首次出现时给出简要定义。",
-        "保持教学和学术风格，注意逻辑性和条理性，把课程讲解的结构清晰地传达出来。",
-        "遇到Stanford的专有课程内容或案例，结合上下文查找权威译法或作简要背景说明。",
-        "special_terms_strategies: 例如'Transformer'译为'变换器模型'，'self-attention'译为'自注意力机制'，'encoder-decoder'译为'编码器-解码器'结构；课程编号和章节请保留原文，如'CS25'。"
-      ]
-    };
+    if (!currentVideoId) {
+      alert('无法获取当前视频ID');
+      return;
+    }
     
-    // 先显示"思考中..."状态
-    strategiesSection.style.display = 'block';
-    strategiesStatus.style.display = 'block';
-    strategiesList.style.display = 'none';
-    strategiesStatus.textContent = "思考中...";
-    
-    console.log('显示"思考中..."状态');
-    
-    // 延迟2秒后显示策略数据，模拟加载过程
-    setTimeout(() => {
-      console.log('准备显示翻译策略数据...');
+    try {
+      // 从本地存储获取翻译策略数据
+      const strategyFlagKey = `has_translation_strategies_${currentVideoId}`;
+      const strategyDataKey = `translation_strategies_${currentVideoId}`;
       
-      // 清空现有策略列表
-      strategiesList.innerHTML = '';
+      const strategyData = await chrome.storage.local.get([strategyFlagKey, strategyDataKey]);
+      console.log('从存储加载翻译策略数据:', strategyData);
       
-      // 添加策略条目
-      testData.translation_strategies.forEach(strategy => {
-        const li = document.createElement('li');
-        li.textContent = strategy;
-        strategiesList.appendChild(li);
-      });
+      if (strategyData[strategyFlagKey] && strategyData[strategyDataKey]) {
+        // 有存储的策略数据，直接显示
+        console.log('找到存储的翻译策略，开始显示...');
+        displayTranslationStrategies(strategyData[strategyDataKey]);
+      } else {
+        // 没有存储的策略数据，尝试从接口获取
+        console.log('未找到存储的翻译策略，尝试从接口获取...');
+        
+        // 检查是否有当前任务ID
+        if (!currentTaskId) {
+          // 尝试从存储中获取任务ID
+          const taskStatusKey = `task_status_${currentVideoId}`;
+          const taskData = await chrome.storage.local.get([taskStatusKey]);
+          if (taskData[taskStatusKey] && taskData[taskStatusKey].taskId) {
+            currentTaskId = taskData[taskStatusKey].taskId;
+            console.log('从存储中找到任务ID:', currentTaskId);
+          }
+        }
+        
+        if (currentTaskId) {
+          try {
+            console.log('调用接口获取翻译策略...');
+            const response = await fetch(`${API_SERVER}/api/tasks/${currentTaskId}/strategies`, {
+              credentials: 'include'
+            });
+            
+            if (response.ok) {
+              const strategiesData = await response.json();
+              console.log('接口返回翻译策略数据:', strategiesData);
+              
+              // 保存到本地存储
+              await updateTranslationStrategies(currentVideoId, strategiesData);
+              
+              // 显示翻译策略
+              displayTranslationStrategies(strategiesData);
+              return;
+            } else {
+              console.error('接口调用失败:', response.status);
+            }
+          } catch (apiError) {
+            console.error('调用接口获取翻译策略失败:', apiError);
+          }
+        }
+        
+        // 如果接口调用失败或没有任务ID，使用测试数据
+        console.log('使用测试数据作为回退...');
+        const testData = {
+          strategies: [
+            "准确翻译和解释关键技术名词，特别是'Transformer'应直接采用音译'变换器'，并首次出现时给出简要定义。",
+            "保持教学和学术风格，注意逻辑性和条理性，把课程讲解的结构清晰地传达出来。",
+            "遇到Stanford的专有课程内容或案例，结合上下文查找权威译法或作简要背景说明。",
+            "special_terms_strategies: 例如'Transformer'译为'变换器模型'，'self-attention'译为'自注意力机制'，'encoder-decoder'译为'编码器-解码器'结构；课程编号和章节请保留原文，如'CS25'。"
+          ]
+        };
+        
+        // 调用显示翻译策略函数
+        displayTranslationStrategies(testData);
+      }
       
-      // 显示策略列表，隐藏加载状态
-      strategiesStatus.style.display = 'none';
-      strategiesList.style.display = 'block';
-      
-      console.log('已显示测试翻译策略数据');
-      
-      // 更新UI高度
-      updateUI();
-    }, 2000);
+    } catch (error) {
+      console.error('获取翻译策略数据失败:', error);
+      alert('获取翻译策略数据失败: ' + error.message);
+    }
   }
 });

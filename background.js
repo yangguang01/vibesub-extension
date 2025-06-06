@@ -4,7 +4,7 @@
  */
 
 // API服务器地址
-const API_SERVER = 'https://tube-trans-server-v2-565406642878.us-west1.run.app';
+const API_SERVER = 'https://api.rxaigc.com';
 
 // 任务状态轮询间隔（毫秒）
 const POLLING_INTERVAL = 15000;
@@ -64,8 +64,8 @@ function startTaskPolling(taskId, videoId) {
     errorCount: 0 // 初始化错误计数
   };
   
-  // 立即检查一次
-  checkTaskStatus(taskId);
+  // 等待5秒后检查
+  setTimeout(() => checkTaskStatus(taskId), 5000);
   
   // 设置定时器
   const intervalId = setInterval(() => checkTaskStatus(taskId), POLLING_INTERVAL);
@@ -104,7 +104,9 @@ async function checkTaskStatus(taskId) {
   
   try {
     console.log(`[Background] 正在检查任务 ${taskId} 的状态`);
-    const response = await fetch(`${API_SERVER}/api/tasks/${taskId}`);
+    const response = await fetch(`${API_SERVER}/api/tasks/${taskId}/status`, {
+      credentials: 'include'
+    });
     
     if (!response.ok) {
       console.error(`[Background] 检查任务 ${taskId} 状态失败: ${response.status}`);
@@ -179,6 +181,21 @@ async function checkTaskStatus(taskId) {
       // 停止轮询
       stopTaskPolling(taskId);
     } 
+    else if (data.status === 'strategies_ready') {
+      console.log(`[Background] 任务 ${taskId} 翻译策略已就绪`);
+      // 只在第一次状态为strategies_ready时获取策略
+      if (!activeTasks[taskId].strategiesFetched) {
+        await fetchTranslationStrategies(taskId, activeTasks[taskId].videoId);
+        // 标记已获取策略
+        activeTasks[taskId].strategiesFetched = true;
+        
+        console.log(`[Background] 任务 ${taskId} 已获取翻译策略，不会重复获取`);
+      } else {
+        console.log(`[Background] 任务 ${taskId} 已经获取过翻译策略，跳过重复获取`);
+      }
+      
+      // 不停止轮询，继续等待翻译完成
+    }
     else if (data.status === 'failed') {
       console.error(`[Background] 任务 ${taskId} 失败:`, data.error || '未知错误');
       
@@ -267,7 +284,9 @@ async function downloadSubtitleFile(taskId, videoId) {
   try {
     console.log(`[Background] 下载任务 ${taskId} 的字幕文件`);
     
-    const response = await fetch(`${API_SERVER}/api/subtitles/${taskId}`);
+    const response = await fetch(`${API_SERVER}/api/subtitles/${taskId}`, {
+      credentials: 'include'
+    });
     
     if (!response.ok) {
       throw new Error(`下载字幕失败: ${response.status}`);
@@ -283,6 +302,66 @@ async function downloadSubtitleFile(taskId, videoId) {
     return true;
   } catch (error) {
     console.error('[Background] 下载字幕文件失败:', error);
+    return false;
+  }
+}
+
+/**
+   * 更新翻译策略数据
+   * @param {string} videoId - 视频ID
+   * @param {Object} strategies - 翻译策略数据
+   */
+async function updateTranslationStrategies(videoId, strategies_data) {
+  if (!videoId) return;
+  console.log('开始在任务状态中写入翻译策略', strategies_data);
+
+  try {
+    await chrome.storage.local.set({
+      [`translation_strategies_${videoId}`]: strategies_data,
+      [`has_translation_strategies_${videoId}`]: true
+    });
+    console.log(`翻译策略已写入: ${videoId}`, strategies_data);
+  } catch (error) {
+    console.error('更新翻译策略失败:', error);
+  }
+}
+
+/**
+ * 获取翻译策略
+ * @param {string} taskId - 任务ID
+ * @param {string} videoId - 视频ID
+ */
+async function fetchTranslationStrategies(taskId, videoId) {
+  try {
+    console.log(`[Background] 获取任务 ${taskId} 的翻译策略`);
+    
+    const response = await fetch(`${API_SERVER}/api/tasks/${taskId}/strategies`, {
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`获取翻译策略失败: ${response.status}`);
+    }
+    
+    const strategiesData = await response.json();
+    console.log(`[Background] 获取到翻译策略:`, strategiesData);
+
+    // 保存翻译策略到存储
+    updateTranslationStrategies(videoId, strategiesData);
+    console.log('保存翻译策略到存储', strategiesData);
+    
+    // 通知前端更新翻译策略
+    chrome.runtime.sendMessage({
+      action: 'taskStatusUpdate',
+      taskId: taskId,
+      status: 'strategies_ready',
+      translationStrategies: strategiesData,
+      progress: '0.2',
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('[Background] 获取翻译策略失败:', error);
     return false;
   }
 }

@@ -1,8 +1,8 @@
 {
-  "name": "Tube Trans - AI精翻字幕",
-  "version": "1.0",
+  "name": "VibeSub - YouTube字幕翻译",
+  "version": "1.0.0",
   "manifest_version": 3,
-  "description": "一个使用AI模型翻译YouTube视频字幕的扩展",
+  "description": "使用AI翻译YouTube视频字幕",
   "icons": {
     "128": "icon.png"
   },
@@ -20,7 +20,11 @@
   "permissions": [
     "storage",
     "activeTab",
-    "tabs"
+    "tabs",
+    "cookies"
+  ],
+  "host_permissions": [
+    "*://*.rxaigc.com/*"
   ],
   "background": {
     "service_worker": "background.js",

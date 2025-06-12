@@ -12,6 +12,307 @@ const POLLING_INTERVAL = 15000;
 // 活跃任务管理
 const activeTasks = {};
 
+/**
+ * 登录状态管理器
+ */
+class LoginManager {
+  constructor() {
+    this.userInfo = null;
+    this.isCheckingLogin = false;
+  }
+
+  /**
+   * 检查用户登录状态
+   * @returns {Promise<{isLoggedIn: boolean, userInfo: object|null}>}
+   */
+  async checkLoginStatus() {
+    if (this.isCheckingLogin) {
+      // 避免重复检查
+      return { isLoggedIn: !!this.userInfo, userInfo: this.userInfo };
+    }
+
+    this.isCheckingLogin = true;
+    
+    try {
+      console.log('开始检查登录状态...');
+      
+      // 检查.rxaigc.com域名下的session cookie
+      const cookies = await chrome.cookies.getAll({
+        domain: '.rxaigc.com',
+        name: 'session'
+      });
+      
+      const sessionCookie = cookies.find(cookie => cookie.name === 'session');
+      
+      if (sessionCookie && sessionCookie.value) {
+        console.log('找到session cookie，用户已登录');
+        
+        // 调用fetchUserInfo获取最新的用户信息和daily_quota
+        const userInfo = await this.fetchUserInfo();
+        
+        if (userInfo) {
+          this.userInfo = userInfo;
+          return { isLoggedIn: true, userInfo: this.userInfo };
+        } else {
+          // 如果获取用户信息失败，使用默认信息
+          this.userInfo = {
+            username: '已登录',
+            daily_quota: '--'
+          };
+          return { isLoggedIn: true, userInfo: this.userInfo };
+        }
+      } else {
+        console.log('未找到session cookie，用户未登录');
+        this.userInfo = null;
+        return { isLoggedIn: false, userInfo: null };
+      }
+    } catch (error) {
+      console.error('检查登录状态失败:', error);
+      this.userInfo = null;
+      return { isLoggedIn: false, userInfo: null };
+    } finally {
+      this.isCheckingLogin = false;
+    }
+  }
+
+  /**
+   * 从API获取用户详细信息
+   */
+  async fetchUserInfo() {
+    try {
+      const response = await fetch(`${API_SERVER}/api/tasks/limit/info`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const limitInfo = await response.json();
+        console.log('从API获取用户限制信息:', limitInfo);
+        
+        // 格式化用户信息
+        const userInfo = {
+          username: '已登录',
+          daily_quota: `${limitInfo.used_today}/${limitInfo.daily_limit}`
+        };
+        
+        // 更新内存中的用户信息
+        this.userInfo = userInfo;
+        
+        return userInfo;
+      } else {
+        console.log('获取用户限制信息失败，状态码:', response.status);
+      }
+    } catch (error) {
+      console.error('获取用户限制信息API调用失败:', error);
+    }
+    
+    return null;
+  }
+
+  /**
+   * 用户登出
+   * @returns {Promise<{success: boolean, message?: string}>}
+   */
+  async logout() {
+    try {
+      console.log('开始用户登出...');
+      
+      // 清除本地存储的用户信息
+      await chrome.storage.local.remove(['user_info']);
+      this.userInfo = null;
+      
+      // 可以在这里调用登出API（如果需要）
+      // await this.callLogoutAPI();
+      
+      console.log('用户登出成功');
+      return { success: true };
+    } catch (error) {
+      console.error('登出失败:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 调用登出API（可选）
+   */
+  async callLogoutAPI() {
+    try {
+      await fetch(`${API_SERVER}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (error) {
+      console.error('调用登出API失败:', error);
+    }
+  }
+
+  /**
+   * 获取当前用户信息
+   * @returns {object|null}
+   */
+  getCurrentUserInfo() {
+    return this.userInfo;
+  }
+
+  /**
+   * 设置测试登录状态（仅用于开发）
+   * @param {object} testUserInfo - 测试用户信息
+   */
+  async setTestLoginStatus(testUserInfo = null) {
+    const defaultTestUser = {
+      username: '测试用户',
+      daily_quota: 500,
+      user_id: 'test_user_123'
+    };
+    
+    this.userInfo = testUserInfo || defaultTestUser;
+    
+    // 保存到存储
+    await chrome.storage.local.set({ 'user_info': this.userInfo });
+    
+    console.log('已设置测试登录状态:', this.userInfo);
+    return { isLoggedIn: true, userInfo: this.userInfo };
+  }
+}
+
+// 创建全局登录管理器实例
+const loginManager = new LoginManager();
+
+/**
+ * 任务管理器
+ */
+class TaskManager {
+  constructor() {
+    this.activeTasks = {};
+  }
+
+  /**
+   * 创建翻译任务
+   * @param {object} taskData - 任务数据
+   * @returns {Promise<{success: boolean, taskId?: string, message?: string}>}
+   */
+  async createTranslationTask(taskData) {
+    try {
+      console.log('[TaskManager] 创建翻译任务:', taskData);
+      
+      // 验证必要参数
+      if (!taskData.youtube_url || !taskData.videoId) {
+        throw new Error('缺少必要的任务参数');
+      }
+
+      // 构建请求数据
+      const requestData = {
+        youtube_url: taskData.youtube_url,
+        content_name: taskData.content_name || '',
+        channel_name: taskData.channel_name || '',
+        // 可扩展其他参数
+        custom_prompt: taskData.custom_prompt || '',
+        special_terms: taskData.special_terms || '',
+        language: taskData.language || 'zh-CN'
+      };
+
+      console.log('[TaskManager] 发送API请求:', requestData);
+
+      // 发送API请求
+      const response = await fetch(`${API_SERVER}/api/tasks`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(requestData)
+      });
+
+      console.log('[TaskManager] API响应状态:', response.status);
+
+      // 处理401未授权错误
+      if (response.status === 401) {
+        // 清除本地用户信息，通知前端重新登录
+        await chrome.storage.local.remove(['user_info']);
+        return {
+          success: false,
+          message: '登录状态已过期，请重新登录',
+          needRelogin: true
+        };
+      }
+
+      // 解析响应数据
+      const data = await response.json();
+      console.log('[TaskManager] API响应数据:', data);
+
+      if (!response.ok) {
+        throw new Error(data.detail || data.message || '创建任务失败');
+      }
+
+      // 获取任务ID
+      const taskId = data.task_id;
+      if (!taskId) {
+        throw new Error('服务器未返回任务ID');
+      }
+
+      // 保存任务状态到本地存储
+      await this.saveTaskStatus(taskData.videoId, {
+        taskId: taskId,
+        status: 'processing',
+        progress: 0,
+        createdAt: new Date().toISOString()
+      });
+
+      // 开始轮询任务状态
+      startTaskPolling(taskId, taskData.videoId);
+
+      console.log('[TaskManager] 任务创建成功:', taskId);
+      return {
+        success: true,
+        taskId: taskId,
+        message: '任务创建成功'
+      };
+
+    } catch (error) {
+      console.error('[TaskManager] 创建任务失败:', error);
+      return {
+        success: false,
+        message: error.message || '创建任务失败'
+      };
+    }
+  }
+
+  /**
+   * 保存任务状态到本地存储
+   * @param {string} videoId - 视频ID
+   * @param {object} status - 任务状态
+   */
+  async saveTaskStatus(videoId, status) {
+    if (!videoId) return;
+    
+    try {
+      const key = `task_status_${videoId}`;
+      await chrome.storage.local.set({ [key]: status });
+      console.log(`[TaskManager] 已保存任务状态: ${key}`, status);
+    } catch (error) {
+      console.error('[TaskManager] 保存任务状态失败:', error);
+    }
+  }
+
+  /**
+   * 获取字幕内容
+   * @param {string} videoId - 视频ID
+   * @returns {Promise<string|null>} 字幕内容或null
+   */
+  async getSubtitleFromStorage(videoId) {
+    if (!videoId) return null;
+    
+    try {
+      const key = `subtitle_${videoId}`;
+      const data = await chrome.storage.local.get([key]);
+      return data[key] || null;
+    } catch (error) {
+      console.error('[TaskManager] 从存储获取字幕失败:', error);
+      return null;
+    }
+  }
+}
+
+// 创建全局任务管理器实例
+const taskManager = new TaskManager();
+
 // 初始化监听器
 function initBackgroundListeners() {
   console.log('[Background] 初始化后台任务监听器');
@@ -36,7 +337,96 @@ function initBackgroundListeners() {
       sendResponse({ success: true, status: status });
     }
     
-    return true; // 保持消息通道开放（异步响应）
+    switch (message.action) {
+      case 'checkLoginStatus':
+        loginManager.checkLoginStatus()
+          .then(result => {
+            console.log('返回登录状态:', result);
+            sendResponse(result);
+          })
+          .catch(error => {
+            console.error('检查登录状态失败:', error);
+            sendResponse({ isLoggedIn: false, userInfo: null, error: error.message });
+          });
+        return true; // 保持消息通道开放
+        
+      case 'logout':
+        loginManager.logout()
+          .then(result => {
+            console.log('登出结果:', result);
+            sendResponse(result);
+          })
+          .catch(error => {
+            console.error('登出失败:', error);
+            sendResponse({ success: false, message: error.message });
+          });
+        return true;
+        
+      case 'setTestLoginStatus':
+        loginManager.setTestLoginStatus(message.testUserInfo)
+          .then(result => {
+            console.log('设置测试登录状态结果:', result);
+            sendResponse(result);
+          })
+          .catch(error => {
+            console.error('设置测试登录状态失败:', error);
+            sendResponse({ isLoggedIn: false, userInfo: null, error: error.message });
+          });
+        return true;
+        
+      case 'getCurrentUserInfo':
+        const userInfo = loginManager.getCurrentUserInfo();
+        sendResponse({ userInfo });
+        break;
+
+      case 'createTranslationTask':
+        taskManager.createTranslationTask(message.taskData)
+          .then(result => {
+            console.log('创建翻译任务结果:', result);
+            sendResponse(result);
+          })
+          .catch(error => {
+            console.error('创建翻译任务失败:', error);
+            sendResponse({ success: false, message: error.message });
+          });
+        return true;
+
+        case 'fetchTranslationStrategies': 
+          const { taskId, videoId } = message;
+          console.log(`[Background] 收到 popup 的重拉策略请求：${taskId}`);
+          
+          // 调用已有的函数去拉取策略并存到 storage
+          fetchTranslationStrategies(taskId, videoId)
+            .then(async () => {
+              // 拉取完毕后立即从 storage 读一遍，回传给 popup
+              const key = `translation_strategies_${videoId}`;
+              const data = await chrome.storage.local.get(key);
+              sendResponse({ success: true, strategies: data[key] });
+            })
+            .catch(err => {
+              console.error(`[Background] fetchTranslationStrategies 错误：`, err);
+              sendResponse({ success: false });
+            });
+    
+          // 告诉 Chrome：我们稍后会异步调用 sendResponse
+          return true;
+
+      case 'getSubtitleFromStorage':
+        taskManager.getSubtitleFromStorage(message.videoId)
+          .then(subtitle => {
+            console.log('获取字幕结果:', subtitle ? '字幕已找到' : '未找到字幕');
+            sendResponse({ success: true, subtitle: subtitle });
+          })
+          .catch(error => {
+            console.error('获取字幕失败:', error);
+            sendResponse({ success: false, message: error.message });
+          });
+        return true;
+      
+      default:
+        console.log('未知消息类型:', message.action);
+        sendResponse({ success: false, message: '未知消息类型' });
+    }
   });
 }
 
@@ -64,8 +454,8 @@ function startTaskPolling(taskId, videoId) {
     errorCount: 0 // 初始化错误计数
   };
   
-  // 等待5秒后检查
-  setTimeout(() => checkTaskStatus(taskId), 5000);
+  // 等待10秒后检查
+  setTimeout(() => checkTaskStatus(taskId), 10000);
   
   // 设置定时器
   const intervalId = setInterval(() => checkTaskStatus(taskId), POLLING_INTERVAL);

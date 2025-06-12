@@ -140,51 +140,73 @@ document.addEventListener('DOMContentLoaded', async () => {
   // });
   
   /**
-   * 获取当前标签页的YouTube视频信息
+   * 获取当前标签页的YouTube视频信息（通过Content Script）
    */
   async function getCurrentVideoInfo() {
     try {
+      console.log('[Popup] 开始获取视频信息...');
+      
       // 获取当前标签页
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
       const currentTab = tabs[0];
       
       // 检查是否在YouTube视频页面
       if (!currentTab.url.includes('youtube.com/watch')) {
+        console.log('[Popup] 不是YouTube视频页面');
         showNoVideoMessage();
         return;
       }
       
-      // 提取视频ID
-      const urlParams = new URLSearchParams(new URL(currentTab.url).search);
-      const videoId = urlParams.get('v');
-      if (videoId) {
-        currentVideoId = videoId;
+      // 从URL提取视频ID作为备用
+      try {
+        const urlParams = new URLSearchParams(new URL(currentTab.url).search);
+        const videoId = urlParams.get('v');
+        if (videoId) {
+          currentVideoId = videoId;
+          console.log('[Popup] 从URL获取视频ID:', videoId);
+        }
+      } catch (e) {
+        console.error('[Popup] 解析URL失败:', e);
       }
       
-      // 从内容脚本获取视频信息
-      chrome.tabs.sendMessage(
-        currentTab.id, 
-        { action: 'getVideoInfo' }, 
-        (response) => {
-          if (chrome.runtime.lastError) {
-            console.error('获取视频信息失败:', chrome.runtime.lastError);
-            showNoVideoMessage();
-            return;
-          }
-          
-          if (response && response.videoInfo) {
-            updateVideoInfo(response.videoInfo);
-            // 确保设置了视频ID
-            if (response.videoInfo.videoId) {
-              currentVideoId = response.videoInfo.videoId;
+      // 通过Content Script获取完整视频信息
+      console.log('[Popup] 向Content Script请求视频信息...');
+      
+      const response = await new Promise((resolve) => {
+        chrome.tabs.sendMessage(
+          currentTab.id, 
+          { action: 'getVideoInfo' }, 
+          (response) => {
+            if (chrome.runtime.lastError) {
+              console.error('[Popup] Content Script通信失败:', chrome.runtime.lastError);
+              resolve({ success: false, error: chrome.runtime.lastError.message });
+            } else {
+              resolve(response);
             }
-          } else {
-            showNoVideoMessage();
           }
+        );
+      });
+      
+      console.log('[Popup] 收到Content Script响应:', response);
+      
+      if (response && response.success && response.videoInfo) {
+        // 成功获取视频信息
+        updateVideoInfo(response.videoInfo);
+        
+        // 确保设置了视频ID
+        if (response.videoInfo.videoId) {
+          currentVideoId = response.videoInfo.videoId;
         }
-      );
+        
+        console.log('[Popup] 视频信息更新完成');
+      } else {
+        // 获取失败，显示错误信息
+        console.error('[Popup] 获取视频信息失败:', response ? response.error : '未知错误');
+        showNoVideoMessage();
+      }
+      
     } catch (error) {
-      console.error('获取当前标签页失败:', error);
+      console.error('[Popup] 获取视频信息异常:', error);
       showNoVideoMessage();
     }
   }
@@ -250,7 +272,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   /**
-   * 提交翻译任务
+   * 提交翻译任务（通过Background Script）
    */
   async function submitTranslationTask() {
     try {
@@ -265,7 +287,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         return;
       }
-      console.log('请求地址：', `${API_SERVER}/api/tasks`);
 
       // 获取当前标签页
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -287,7 +308,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       currentVideoId = videoId;
       
-      // 禁用按钮，显示加载状态
+      // 更新UI状态
       translateBtn.disabled = true;
       translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-spinner fa-spin"></i></span>创建任务中...';
       
@@ -295,87 +316,70 @@ document.addEventListener('DOMContentLoaded', async () => {
       progressSection.style.display = 'block';
       updateProgress(0, '准备中...');
       
-      // 构建请求数据
-      const requestData = {
+      // 构建任务数据
+      const taskData = {
+        videoId: videoId,
         youtube_url: currentTab.url,
+        content_name: document.getElementById('video-title').textContent || '',
+        channel_name: document.getElementById('channel-name').textContent || '',
+        // 可扩展其他参数
         // custom_prompt: customPromptInput.value,
         // special_terms: specialTermsInput.value,
-        content_name: document.getElementById('video-title').textContent,
-        channel_name: document.getElementById('channel-name').textContent,
         // language: targetLangSelect.value
       };
       
-      console.log('发送请求到服务端:', requestData);
+      console.log('向Background发送创建任务请求:', taskData);
       
-      // 创建翻译任务
-      const response = await fetch(`${API_SERVER}/api/tasks`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(requestData)
+      // 通过Background Script创建任务
+      const response = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({
+          action: 'createTranslationTask',
+          taskData: taskData
+        }, resolve);
       });
       
-      console.log('服务端响应状态:', response.status);
+      console.log('收到Background响应:', response);
       
-      // 处理401未授权错误
-      if (response.status === 401) {
-        // 清除本地用户信息
-        await chrome.storage.local.remove(['user_info']);
-        userInfo = null;
-        updateLoginStatus(false);
+      if (response && response.success) {
+        // 任务创建成功
+        currentTaskId = response.taskId;
+        
+        // 更新状态文本
+        updateProgress(0, '任务已创建，正在处理...');
+        
+        // 设置监听来自后台的消息
+        setupBackgroundMessageListener();
+        
+        console.log('翻译任务创建成功，任务ID:', currentTaskId);
+        
+      } else {
+        // 任务创建失败
+        const errorMessage = response ? response.message : '创建任务失败';
+        
+        // 处理需要重新登录的情况
+        if (response && response.needRelogin) {
+          // 清除本地用户信息，更新UI
+          userInfo = null;
+          updateLoginStatus(false);
+          
+          // 提示用户登录
+          const shouldLogin = confirm('登录状态已过期，需要重新登录。是否前往登录页面？');
+          if (shouldLogin) {
+            chrome.tabs.create({ url: 'https://auth.rxaigc.com' });
+            window.close();
+          }
+        } else {
+          // 其他错误，显示错误信息
+          alert(`创建翻译任务失败: ${errorMessage}`);
+        }
         
         // 恢复按钮状态
         translateBtn.disabled = false;
         translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>翻译字幕';
-        
-        // 提示用户登录
-        const shouldLogin = confirm('登录状态已过期，需要重新登录。是否前往登录页面？');
-        if (shouldLogin) {
-          chrome.tabs.create({ url: 'https://auth.rxaigc.com' });
-          window.close();
-        }
-        return;
       }
-      
-      const data = await response.json();
-      console.log('服务端响应数据:', data);
-      
-      if (!response.ok) {
-        throw new Error(data.detail || '创建任务失败');
-      }
-      
-      // 保存任务ID
-      currentTaskId = data.task_id;
-      
-      // 保存当前任务状态到本地存储
-      await saveTaskStatus(videoId, {
-        taskId: currentTaskId,
-        status: 'processing',
-        progress: 0,
-        createdAt: new Date().toISOString()
-      });
-      
-      // 更新状态文本
-      updateProgress(0, '任务已创建，正在处理...');
-      
-      // 通知后台脚本开始轮询任务状态
-      chrome.runtime.sendMessage({
-        action: 'startTaskPolling',
-        taskId: currentTaskId,
-        videoId: videoId
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.error('通知后台脚本失败:', chrome.runtime.lastError);
-        } else {
-          console.log('后台任务轮询已启动:', response);
-        }
-      });
-      
-      // 设置监听来自后台的消息
-      setupBackgroundMessageListener();
       
     } catch (error) {
-      console.error('提交翻译任务失败:', error);
+      console.error('提交翻译任务异常:', error);
       alert(`提交翻译任务失败: ${error.message}`);
       
       // 恢复按钮状态
@@ -466,9 +470,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         // if (taskStatus.translationStrategies) {
         //   displayTranslationStrategies(taskStatus.translationStrategies);
         // }
+        // if (strategyData[strategyFlagKey]) {
+        //   displayTranslationStrategies(strategyData[strategyDataKey]);
+        // }
+
         if (strategyData[strategyFlagKey]) {
+          // 正常恢复
           displayTranslationStrategies(strategyData[strategyDataKey]);
+      
+        } else {
+          // **新增**：本地没有拿到，就让 background 去拉一次
+          console.log('本地没策略，主动请求后台获取一次');
+          chrome.runtime.sendMessage({
+            action: 'fetchTranslationStrategies',
+            taskId: currentTaskId,
+            videoId: currentVideoId
+          }, (response) => {
+            if (chrome.runtime.lastError) {
+              console.error('请求后台获取翻译策略失败', chrome.runtime.lastError);
+            } else if (response && response.success && response.strategies) {
+              // 拿到策略，存在本地再显示一次
+              displayTranslationStrategies(response.strategies);
+            } else {
+              console.warn('后台未返回策略');
+            }
+          });
         }
+      
         
         if (taskStatus.status === 'completed') {
           // 已完成的任务显示100%进度
@@ -528,38 +556,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   /**
-   * 保存任务状态
+   * 保存任务状态（通过Background Script）
+   * @param {string} videoId - 视频ID  
+   * @param {object} status - 任务状态
    */
   async function saveTaskStatus(videoId, status) {
-    if (!videoId) return;
-    
-    try {
-      const key = `task_status_${videoId}`;
-      await chrome.storage.local.set({ [key]: status });
-      console.log(`已保存任务状态: ${key}`, status);
-    } catch (error) {
-      console.error('保存任务状态失败:', error);
-    }
+    // 这个函数现在主要由background处理，popup端保留用于向后兼容
+    console.log('popup.js中的saveTaskStatus已废弃，请使用background处理存储操作');
   }
   
   /**
-   * 更新翻译策略数据
+   * 更新翻译策略数据（通过Background Script）
    * @param {string} videoId - 视频ID
    * @param {Object} strategies - 翻译策略数据
    */
   async function updateTranslationStrategies(videoId, strategies_data) {
-    if (!videoId) return;
-    console.log('开始在任务状态中写入翻译策略', strategies_data);
-
-    try {
-      await chrome.storage.local.set({
-        [`translation_strategies_${videoId}`]: strategies_data,
-        [`has_translation_strategies_${videoId}`]: true
-      });
-      console.log(`翻译策略已写入: ${videoId}`, strategies_data);
-    } catch (error) {
-      console.error('更新翻译策略失败:', error);
-    }
+    // 这个函数现在主要由background处理，popup端保留用于向后兼容
+    console.log('popup.js中的updateTranslationStrategies已废弃，请使用background处理存储操作');
   }
   
   /**
@@ -634,24 +647,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return '状态异常，请刷新页面';
     }
   }
-  
-  /**
-   * 从本地存储获取字幕内容
-   * @param {string} videoId - 视频ID
-   * @returns {Promise<string|null>} 字幕内容或null
-   */
-  async function getSubtitleFromStorage(videoId) {
-    if (!videoId) return null;
-    
-    try {
-      const key = `subtitle_${videoId}`;
-      const data = await chrome.storage.local.get([key]);
-      return data[key] || null;
-    } catch (error) {
-      console.error('从存储获取字幕失败:', error);
-      return null;
-    }
-  }
+
 
   /**
    * 应用已存在的字幕
@@ -719,41 +715,33 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   
   /**
-   * 检查用户登录状态
+   * 检查用户登录状态（通过background script）
    */
   async function checkLoginStatus() {
     try {
-      // 检查.rxaigc.com域名下的session cookie
-      const cookies = await chrome.cookies.getAll({
-        domain: '.rxaigc.com',
-        name: 'session'
+      console.log('向background请求检查登录状态...');
+      
+      const response = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: 'checkLoginStatus' }, resolve);
       });
       
-      const sessionCookie = cookies.find(cookie => cookie.name === 'session');
-      
-      if (sessionCookie && sessionCookie.value) {
-        // 有session cookie，认为已登录
-        // 从存储中获取用户信息（如果有的话）
-        const data = await chrome.storage.local.get(['user_info']);
-        userInfo = data.user_info;
+      if (response && !chrome.runtime.lastError) {
+        console.log('收到登录状态响应:', response);
         
-        if (!userInfo) {
-          // 如果没有用户信息，使用默认信息
-          userInfo = {
-            username: '已登录用户',
-            daily_quota: '--'
-          };
+        if (response.isLoggedIn && response.userInfo) {
+          userInfo = response.userInfo;
+          updateLoginStatus(true);
+        } else {
+          userInfo = null;
+          updateLoginStatus(false);
         }
-        
-        updateLoginStatus(true);
       } else {
-        // 没有session cookie，未登录
+        console.error('检查登录状态失败:', chrome.runtime.lastError);
         userInfo = null;
         updateLoginStatus(false);
       }
     } catch (error) {
-      console.error('检查登录状态失败:', error);
-      // 默认显示未登录状态
+      console.error('检查登录状态异常:', error);
       userInfo = null;
       updateLoginStatus(false);
     }
@@ -810,44 +798,63 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   /**
-   * 用户登出
+   * 用户登出（通过background script）
    */
   async function logout() {
     try {
-      // 清除用户信息
-      await chrome.storage.local.remove(['user_info']);
-      userInfo = null;
+      console.log('向background请求登出...');
       
-      // 更新UI为未登录状态
-      updateLoginStatus(false);
+      const response = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: 'logout' }, resolve);
+      });
       
-      // 隐藏下拉菜单
-      userDropdown.style.display = 'none';
+      if (response && response.success) {
+        console.log('登出成功');
+        userInfo = null;
+        updateLoginStatus(false);
+        
+        // 隐藏下拉菜单
+        if (userDropdown) {
+          userDropdown.style.display = 'none';
+        }
+      } else {
+        console.error('登出失败:', response ? response.message : '未知错误');
+      }
     } catch (error) {
-      console.error('登出失败:', error);
+      console.error('登出异常:', error);
     }
   }
   
   /**
-   * 临时测试函数：模拟用户登录状态
-   * 仅用于开发测试，实际使用时应删除
+   * 设置测试登录状态（通过background script）
    */
   async function testSetLoginStatus() {
-    // 模拟用户数据
-    const testUserInfo = {
-      username: '测试用户',
-      daily_quota: 500,
-      // 其他用户信息...
-    };
-    
-    // 保存到存储
-    await chrome.storage.local.set({ 'user_info': testUserInfo });
-    
-    // 更新当前变量和UI
-    userInfo = testUserInfo;
-    updateLoginStatus(true);
-    
-    console.log('已设置测试登录状态');
+    try {
+      console.log('向background请求设置测试登录状态...');
+      
+      const testUserInfo = {
+        username: '测试用户',
+        daily_quota: 500,
+        user_id: 'test_user_123'
+      };
+      
+      const response = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ 
+          action: 'setTestLoginStatus',
+          testUserInfo: testUserInfo
+        }, resolve);
+      });
+      
+      if (response && response.isLoggedIn) {
+        console.log('设置测试登录状态成功:', response);
+        userInfo = response.userInfo;
+        updateLoginStatus(true);
+      } else {
+        console.error('设置测试登录状态失败:', response ? response.error : '未知错误');
+      }
+    } catch (error) {
+      console.error('设置测试登录状态异常:', error);
+    }
   }
   
   // 双击logo区域触发测试登录（仅用于开发测试）

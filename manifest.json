@@ -2,13 +2,13 @@
   "name": "VibeSub - YouTube字幕翻译",
   "version": "1.0.0",
   "manifest_version": 3,
-  "description": "使用AI翻译YouTube视频字幕",
+  "description": "使用生成式AI模型翻译YouTube视频字幕",
   "icons": {
-    "128": "icon.png"
+    "128": "icons/icon128-3.png"
   },
   "action": {
     "default_popup": "popup.html",
-    "default_icon": "icon.png"
+    "default_icon": "icons/icon128-3.png"
   },
   "content_scripts": [
     {

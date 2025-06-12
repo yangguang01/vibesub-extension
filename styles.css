@@ -13,11 +13,11 @@
 .youtube-custom-subtitle span {
   display: inline-block;
   background-color: rgba(0, 0, 0, 0.7);
-  color: white;
+  color: #ffde5a;
   padding: 4px 8px;
   margin: 0 auto;
   border-radius: 4px;
-  font-size: 28px;
+  font-size: 36px;
   line-height: 1.5;
   max-width: 80%;
 }

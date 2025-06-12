@@ -177,55 +177,145 @@ function checkAndProcessVideo() {
  * @returns {Object} 视频信息对象
  */
 function getVideoInfo() {
+  console.log('[Content] 开始获取视频信息...');
+  
+  // 获取视频ID
+  const videoId = getVideoId();
+  
   // 获取视频标题
-  const titleElement = document.querySelector('h1.ytd-watch-metadata');
-  const title = titleElement ? titleElement.textContent.trim() : '未知标题';
+  let title = '';
+  const titleSelectors = [
+    'h1.ytd-watch-metadata yt-formatted-string',
+    'h1.ytd-watch-metadata',
+    '.ytd-video-primary-info-renderer h1',
+    'h1[class*="title"]'
+  ];
   
-  // 尝试不同的选择器获取频道名称
-  let channelName = '';
-  
-  // 方法1: 尝试简单的选择器
-  const channelElement1 = document.querySelector('#channel-name');
-  if (channelElement1) {
-    channelName = channelElement1.textContent.trim();
-    console.log('方法1获取频道名称成功:', channelName);
-  } else {
-    console.log('方法1获取频道名称失败');
-  }
-  
-  // 方法2: 如果方法1失败，尝试另一个选择器
-  if (!channelName) {
-    const channelElement2 = document.querySelector('.ytd-channel-name');
-    if (channelElement2) {
-      channelName = channelElement2.textContent.trim();
-      console.log('方法2获取频道名称成功:', channelName);
-    } else {
-      console.log('方法2获取频道名称失败');
+  for (const selector of titleSelectors) {
+    const titleElement = document.querySelector(selector);
+    if (titleElement && titleElement.textContent.trim()) {
+      title = titleElement.textContent.trim();
+      console.log(`[Content] 使用选择器"${selector}"获取标题:`, title);
+      break;
     }
   }
   
-  // 获取视频缩略图
-  const videoId = getVideoId();
-  const thumbnail = videoId ? `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg` : '';
+  // 获取频道名称
+  let channelName = '';
+  const channelSelectors = [
+    'ytd-channel-name #container #text-container yt-formatted-string',
+    'ytd-channel-name yt-formatted-string',
+    '#owner-container #channel-name a',
+    '.ytd-channel-name a',
+    '#channel-name .ytd-channel-name',
+    'a.yt-simple-endpoint.style-scope.yt-formatted-string',
+    '#meta #owner-container #text-container yt-formatted-string'
+  ];
+  
+  for (const selector of channelSelectors) {
+    const channelElement = document.querySelector(selector);
+    if (channelElement && channelElement.textContent.trim()) {
+      channelName = channelElement.textContent.trim();
+      console.log(`[Content] 使用选择器"${selector}"获取频道名:`, channelName);
+      break;
+    }
+  }
   
   // 获取视频时长
+  let duration = 0;
   const videoElement = document.querySelector('video');
-  const duration = videoElement ? videoElement.duration : 0;
+  if (videoElement && videoElement.duration && !isNaN(videoElement.duration)) {
+    duration = Math.round(videoElement.duration);
+  }
   
-  // 检查是否有字幕
-  const hasSubtitles = document.querySelector('.ytp-subtitles-button[aria-pressed="true"]') !== null;
+  // 获取视频描述（可选）
+  let description = '';
+  const descriptionElement = document.querySelector('#description-text');
+  if (descriptionElement) {
+    description = descriptionElement.textContent.trim().substring(0, 200); // 限制长度
+  }
   
-  const result = {
-    title,
-    channelName,
-    thumbnail,
-    duration,
-    hasSubtitles,
-    videoId
+  const videoInfo = {
+    videoId: videoId,
+    title: title || '未知标题',
+    channelName: channelName || '未知频道',
+    duration: duration,
+    url: window.location.href,
+    description: description
   };
   
-  console.log('视频信息:', result);
-  return result;
+  console.log('[Content] 获取到视频信息:', videoInfo);
+  return videoInfo;
+}
+
+/**
+ * 检查当前页面是否为YouTube视频页面
+ * @returns {boolean} 是否为YouTube视频页面
+ */
+function isYouTubeVideoPage() {
+  return window.location.href.includes('youtube.com/watch') && !!getVideoId();
+}
+
+/**
+ * 等待元素加载完成
+ * @param {string} selector - CSS选择器
+ * @param {number} timeout - 超时时间（毫秒）
+ * @returns {Promise<Element|null>} 找到的元素或null
+ */
+function waitForElement(selector, timeout = 5000) {
+  return new Promise((resolve) => {
+    const element = document.querySelector(selector);
+    if (element) {
+      resolve(element);
+      return;
+    }
+    
+    const observer = new MutationObserver((mutations) => {
+      const element = document.querySelector(selector);
+      if (element) {
+        observer.disconnect();
+        resolve(element);
+      }
+    });
+    
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    
+    setTimeout(() => {
+      observer.disconnect();
+      resolve(null);
+    }, timeout);
+  });
+}
+
+/**
+ * 获取完整的视频信息（等待页面加载完成）
+ * @returns {Promise<Object>} 视频信息对象
+ */
+async function getCompleteVideoInfo() {
+  console.log('[Content] 获取完整视频信息...');
+  
+  if (!isYouTubeVideoPage()) {
+    throw new Error('当前页面不是YouTube视频页面');
+  }
+  
+  // 等待关键元素加载
+  await waitForElement('h1.ytd-watch-metadata', 3000);
+  await waitForElement('ytd-channel-name', 3000);
+  
+  // 获取视频信息
+  const videoInfo = getVideoInfo();
+  
+  // 如果标题或频道名为空，再等待一段时间重试
+  if (videoInfo.title === '未知标题' || videoInfo.channelName === '未知频道') {
+    console.log('[Content] 信息不完整，等待1秒后重试...');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return getVideoInfo();
+  }
+  
+  return videoInfo;
 }
 
 /**
@@ -326,38 +416,26 @@ function startMonitoring() {
 
 // 监听来自弹出窗口的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('收到消息:', message);
+  console.log('[Content] 收到消息:', message);
   
   // 处理获取视频信息请求
   if (message.action === 'getVideoInfo') {
-    try {
-      console.log('正在获取视频信息...');
-      
-      // 获取频道名称
-      let channelName = '未知频道';
-      const channelElement = document.querySelector('ytd-channel-name yt-formatted-string#text a');
-      if (channelElement) {
-        channelName = channelElement.textContent;
-        console.log('找到频道名称:', channelName);
-      } else {
-        console.log('未找到频道名称元素');
-      }
-      
-      // 构建视频信息对象
-      const videoInfo = {
-        title: document.querySelector('h1.ytd-watch-metadata')?.textContent.trim() || '未知标题',
-        channelName: channelName,
-        duration: document.querySelector('video')?.duration || 0,
-        videoId: getVideoId()
-      };
-      
-      console.log('返回视频信息:', videoInfo);
-      sendResponse({ videoInfo });
-    } catch (error) {
-      console.error('获取视频信息时出错:', error);
-      sendResponse({ error: '处理请求时出错' });
-    }
-    return true;
+    console.log('[Content] 处理获取视频信息请求...');
+    
+    getCompleteVideoInfo()
+      .then(videoInfo => {
+        console.log('[Content] 成功获取视频信息:', videoInfo);
+        sendResponse({ success: true, videoInfo: videoInfo });
+      })
+      .catch(error => {
+        console.error('[Content] 获取视频信息失败:', error);
+        sendResponse({ 
+          success: false, 
+          error: error.message || '获取视频信息失败' 
+        });
+      });
+    
+    return true; // 保持消息通道开放，以便异步响应
   }
   
   // 处理保存字幕文件请求
@@ -375,7 +453,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success, message: success ? '字幕已保存' : '保存字幕失败' });
       })
       .catch(error => {
-        console.error('保存字幕时出错:', error);
+        console.error('[Content] 保存字幕时出错:', error);
         sendResponse({ success: false, message: error.message });
       });
     
@@ -384,6 +462,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   // 处理应用字幕请求
   if (message.action === 'applySubtitles') {
+    console.log('[Content] 处理应用字幕请求...');
+    
     // 停止现有字幕显示
     if (subtitleEngine) {
       subtitleEngine.stop();
@@ -392,6 +472,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     // 重新初始化字幕
     initSubtitles().then(success => {
+      console.log('[Content] 字幕应用结果:', success);
       sendResponse({ success, message: success ? '字幕已应用' : '应用字幕失败' });
     });
     

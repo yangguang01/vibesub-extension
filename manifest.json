@@ -4,11 +4,11 @@
   "manifest_version": 3,
   "description": "使用生成式AI模型翻译YouTube视频字幕",
   "icons": {
-    "128": "icons/icon128-3.png"
+    "128": "icons/icon128.png"
   },
   "action": {
     "default_popup": "popup.html",
-    "default_icon": "icons/icon128-3.png"
+    "default_icon": "icons/icon48.png"
   },
   "content_scripts": [
     {

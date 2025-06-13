@@ -375,7 +375,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // 恢复按钮状态
         translateBtn.disabled = false;
-        translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>翻译字幕';
+        translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>开始翻译';
       }
       
     } catch (error) {
@@ -384,7 +384,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // 恢复按钮状态
       translateBtn.disabled = false;
-      translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>翻译字幕';
+      translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>开始翻译';
     }
   }
   
@@ -427,7 +427,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               updateProgress(0, message.errorMessage || '翻译失败');
               // 失败的任务显示错误状态
               translateBtn.disabled = false;
-              translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>翻译字幕';
+              translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>开始翻译';
             }
           }
         }
@@ -513,7 +513,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           updateProgress(0, taskStatus.errorMessage || '翻译失败');
           // 按钮可点击，允许重试
           translateBtn.disabled = false;
-          translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>翻译字幕';
+          translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>开始翻译';
         } else {
           // 进行中的任务，询问后台当前状态
           updateProgress(taskStatus.progress || 0, getStatusText(taskStatus.status));

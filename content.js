@@ -479,7 +479,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // 保持消息通道开放，以便异步响应
   }
   
-  // 处理翻译字幕请求 (兼容旧版本)
+  // 处理开始翻译请求 (兼容旧版本)
   if (message.action === 'translateSubtitles') {
     // 显示翻译中状态
     showTranslationStatus('请使用新版翻译功能', false);

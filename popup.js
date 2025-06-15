@@ -412,8 +412,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 处理翻译策略数据
             if (message.translationStrategies) {
               displayTranslationStrategies(message.translationStrategies);
+            } else {
+              // **新增**：本地没有拿到，就让 background 去拉一次
+              console.log('本地没策略，主动请求后台获取一次');
+              chrome.runtime.sendMessage({
+                action: 'fetchTranslationStrategies',
+                taskId: currentTaskId,
+                videoId: currentVideoId
+              }, (response) => {
+                if (chrome.runtime.lastError) {
+                  console.error('请求后台获取翻译策略失败', chrome.runtime.lastError);
+                } else if (response && response.success && response.strategies) {
+                  // 拿到策略，存在本地再显示一次
+                  displayTranslationStrategies(response.strategies);
+                } else {
+                  console.warn('后台未返回策略');
+                }
+              });
             }
-            
+          
+
             // 如果任务完成或失败，更新UI
             if (message.status === 'completed') {
               // 修改按钮为"应用字幕"

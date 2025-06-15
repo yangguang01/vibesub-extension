@@ -6,8 +6,18 @@
   right: 0;
   text-align: center;
   z-index: 9999;
-  pointer-events: none;
+  pointer-events: auto;
   user-select: none;
+  cursor: grab;
+  transition: opacity 0.2s ease;
+}
+
+.youtube-custom-subtitle:hover {
+  opacity: 0.9;
+}
+
+.youtube-custom-subtitle:active {
+  cursor: grabbing;
 }
 
 .youtube-custom-subtitle span {
@@ -20,6 +30,23 @@
   font-size: 36px;
   line-height: 1.5;
   max-width: 80%;
+  border: 2px solid transparent;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.youtube-custom-subtitle:hover span {
+  border-color: rgba(255, 222, 90, 0.3);
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+/* 拖拽状态样式 */
+.youtube-custom-subtitle.dragging {
+  opacity: 0.8;
+}
+
+.youtube-custom-subtitle.dragging span {
+  border-color: #ffde5a;
+  background-color: rgba(0, 0, 0, 0.9);
 }
 
 /* 翻译中状态指示器 */
@@ -43,4 +70,29 @@
   0% { opacity: 0.6; }
   50% { opacity: 1; }
   100% { opacity: 0.6; }
-} 
+}
+
+/* 字幕使用提示 */
+.subtitle-hint {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #ffde5a;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 10000;
+  opacity: 0;
+  animation: fadeInOut 4s ease-in-out;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}

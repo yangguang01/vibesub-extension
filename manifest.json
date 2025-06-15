@@ -20,19 +20,17 @@
   "permissions": [
     "storage",
     "activeTab",
-    "tabs",
     "cookies"
   ],
   "host_permissions": [
     "*://*.rxaigc.com/*"
   ],
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "web_accessible_resources": [
     {
-      "resources": ["test.srt", "*.srt"],
+      "resources": ["*.srt"],
       "matches": ["*://www.youtube.com/*"]
     }
   ]

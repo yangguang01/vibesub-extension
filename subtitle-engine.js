@@ -12,9 +12,192 @@ class SubtitleEngine {
     this.currentSubtitle = null;
     this.subtitleContainer = null;
     this.checkInterval = null;
+    
+    // 拖拽相关状态
+    this.isDragging = false;
+    this.dragStartX = 0;
+    this.dragStartY = 0;
+    this.subtitleX = 0; // 字幕X偏移量
+    this.subtitleY = 0; // 字幕Y偏移量
+    this.defaultBottomPosition = 80; // 默认底部位置
+    
+    // 绑定拖拽事件
+    this.handleMouseDown = this.handleMouseDown.bind(this);
+    this.handleMouseMove = this.handleMouseMove.bind(this);
+    this.handleMouseUp = this.handleMouseUp.bind(this);
+    this.handleDoubleClick = this.handleDoubleClick.bind(this);
+    
+    // 从存储中加载位置设置
+    this.loadPositionSettings();
   }
 
   /**
+   * 从存储中加载位置设置
+   */
+  async loadPositionSettings() {
+    try {
+      const data = await chrome.storage.local.get(['subtitlePosition']);
+      if (data.subtitlePosition) {
+        this.subtitleX = data.subtitlePosition.x || 0;
+        this.subtitleY = data.subtitlePosition.y || 0;
+        console.log('SubtitleEngine: 加载位置设置', { x: this.subtitleX, y: this.subtitleY });
+      }
+    } catch (error) {
+      console.error('SubtitleEngine: 加载位置设置失败', error);
+    }
+  }
+
+  /**
+   * 保存位置设置到存储
+   */
+  async savePositionSettings() {
+    try {
+      await chrome.storage.local.set({
+        subtitlePosition: {
+          x: this.subtitleX,
+          y: this.subtitleY
+        }
+      });
+      console.log('SubtitleEngine: 保存位置设置', { x: this.subtitleX, y: this.subtitleY });
+    } catch (error) {
+      console.error('SubtitleEngine: 保存位置设置失败', error);
+    }
+  }
+
+  /**
+   * 鼠标按下事件处理
+   */
+  handleMouseDown(event) {
+    if (event.target.closest('.youtube-custom-subtitle')) {
+      event.preventDefault();
+      this.isDragging = true;
+      this.dragStartX = event.clientX - this.subtitleX;
+      this.dragStartY = event.clientY - this.subtitleY;
+      
+      // 添加拖拽样式
+      this.subtitleContainer.classList.add('dragging');
+      this.subtitleContainer.style.cursor = 'grabbing';
+      this.subtitleContainer.style.userSelect = 'none';
+      
+      // 添加全局事件监听器
+      document.addEventListener('mousemove', this.handleMouseMove);
+      document.addEventListener('mouseup', this.handleMouseUp);
+      
+      console.log('SubtitleEngine: 开始拖拽字幕');
+    }
+  }
+
+  /**
+   * 鼠标移动事件处理
+   */
+  handleMouseMove(event) {
+    if (!this.isDragging) return;
+    
+    event.preventDefault();
+    
+    // 计算新位置，无边界限制，让用户自由控制
+    this.subtitleX = event.clientX - this.dragStartX;
+    this.subtitleY = event.clientY - this.dragStartY;
+    
+    // 更新字幕位置
+    this.updateSubtitlePosition();
+  }
+
+  /**
+   * 鼠标释放事件处理
+   */
+  handleMouseUp(event) {
+    if (this.isDragging) {
+      this.isDragging = false;
+      
+      // 移除拖拽样式
+      this.subtitleContainer.classList.remove('dragging');
+      this.subtitleContainer.style.cursor = 'grab';
+      
+      // 移除全局事件监听器
+      document.removeEventListener('mousemove', this.handleMouseMove);
+      document.removeEventListener('mouseup', this.handleMouseUp);
+      
+      // 保存位置设置
+      this.savePositionSettings();
+      
+      console.log('SubtitleEngine: 结束拖拽字幕', { x: this.subtitleX, y: this.subtitleY });
+    }
+  }
+
+  /**
+   * 更新字幕位置
+   */
+  updateSubtitlePosition() {
+    if (this.subtitleContainer) {
+      // 计算实际的bottom值
+      const bottomValue = this.defaultBottomPosition - this.subtitleY;
+      
+      this.subtitleContainer.style.transform = `translateX(${this.subtitleX}px)`;
+      this.subtitleContainer.style.bottom = `${bottomValue}px`;
+    }
+  }
+
+  /**
+   * 双击重置位置
+   */
+  handleDoubleClick(event) {
+    if (event.target.closest('.youtube-custom-subtitle')) {
+      // 重置到默认位置
+      this.subtitleX = 0;
+      this.subtitleY = 0;
+      
+      // 更新位置
+      this.updateSubtitlePosition();
+      
+      // 保存设置
+      this.savePositionSettings();
+      
+      console.log('SubtitleEngine: 字幕位置已重置');
+      
+      // 简单的视觉反馈
+      this.subtitleContainer.style.transition = 'all 0.3s ease';
+      setTimeout(() => {
+        this.subtitleContainer.style.transition = '';
+             }, 300);
+     }
+   }
+
+   /**
+    * 显示使用提示
+    */
+   async showUsageHint() {
+     try {
+       // 检查是否已经显示过提示
+       const data = await chrome.storage.local.get(['subtitleHintShown']);
+       if (data.subtitleHintShown) return;
+
+       // 创建提示元素
+       const hint = document.createElement('div');
+       hint.className = 'subtitle-hint';
+       hint.textContent = '💡 拖拽字幕可改变位置，双击重置 💡';
+
+       // 找到视频播放器容器
+       const videoPlayer = document.querySelector('.html5-video-player');
+       if (videoPlayer) {
+         videoPlayer.appendChild(hint);
+
+         // 标记为已显示
+         await chrome.storage.local.set({ subtitleHintShown: true });
+
+         // 4秒后移除提示
+         setTimeout(() => {
+           if (hint.parentElement) {
+             hint.parentElement.removeChild(hint);
+           }
+         }, 4000);
+       }
+     } catch (error) {
+       console.error('SubtitleEngine: 显示提示失败', error);
+     }
+   }
+
+   /**
    * 解析SRT格式的字幕文件
    * @param {string} srtContent - SRT文件内容
    */
@@ -98,7 +281,7 @@ class SubtitleEngine {
     this.subtitleContainer = document.createElement('div');
     this.subtitleContainer.className = 'youtube-custom-subtitle';
     this.subtitleContainer.style.position = 'absolute';
-    this.subtitleContainer.style.bottom = '80px'; // 调整位置，避免与YouTube控件重叠
+    this.subtitleContainer.style.bottom = `${this.defaultBottomPosition}px`; // 使用默认位置
     this.subtitleContainer.style.left = '0';
     this.subtitleContainer.style.width = '100%';
     this.subtitleContainer.style.textAlign = 'center';
@@ -107,7 +290,8 @@ class SubtitleEngine {
     this.subtitleContainer.style.textShadow = '2px 2px 4px rgba(0,0,0,0.8)'; // 增强阴影
     this.subtitleContainer.style.zIndex = '9999'; // 大幅提高z-index
     this.subtitleContainer.style.padding = '10px';
-    this.subtitleContainer.style.pointerEvents = 'none';
+    this.subtitleContainer.style.pointerEvents = 'auto'; // 允许交互
+    this.subtitleContainer.style.cursor = 'grab'; // 设置拖拽光标
     this.subtitleContainer.style.backgroundColor = 'rgba(0,0,0,0)'; // 添加半透明背景
     this.subtitleContainer.style.display = 'block !important'; // 强制显示
     
@@ -132,12 +316,23 @@ class SubtitleEngine {
       }
     }
     
+    // 添加拖拽事件监听器
+    this.subtitleContainer.addEventListener('mousedown', this.handleMouseDown);
+    this.subtitleContainer.addEventListener('dblclick', this.handleDoubleClick);
+    
+    // 应用保存的位置设置
+    this.updateSubtitlePosition();
+    
+    // 显示使用提示（仅第一次）
+    this.showUsageHint();
+    
     // 记录创建成功
     console.log('字幕容器详情:', {
       '存在DOM中': !!document.querySelector('.youtube-custom-subtitle'),
       'z-index': this.subtitleContainer.style.zIndex,
       '位置': this.subtitleContainer.style.bottom,
-      '父元素': this.subtitleContainer.parentElement
+      '父元素': this.subtitleContainer.parentElement,
+      '拖拽功能': '已启用'
     });
   }
   
@@ -229,6 +424,19 @@ class SubtitleEngine {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
+    }
+    
+    // 清理拖拽事件监听器
+    if (this.subtitleContainer) {
+      this.subtitleContainer.removeEventListener('mousedown', this.handleMouseDown);
+      this.subtitleContainer.removeEventListener('dblclick', this.handleDoubleClick);
+    }
+    
+    // 清理全局事件监听器（如果正在拖拽）
+    if (this.isDragging) {
+      document.removeEventListener('mousemove', this.handleMouseMove);
+      document.removeEventListener('mouseup', this.handleMouseUp);
+      this.isDragging = false;
     }
     
     this.clearSubtitle();

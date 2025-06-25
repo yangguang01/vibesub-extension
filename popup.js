@@ -47,6 +47,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // 用户信息
   let userInfo = null;
+  
+  // 当前进度值（用于在新进度值为空时保持之前的值）
+  let currentProgress = 0;
 
   // 自适应窗口高度
   function adjustPopupHeight() {
@@ -401,37 +404,29 @@ document.addEventListener('DOMContentLoaded', async () => {
           // 检查是否有错误信息
           if (message.isError && message.errorMessage) {
             // 显示错误状态
-            updateProgress(message.progress || 0, message.errorMessage);
+            // 如果 message.progress 没有值，使用之前的进度值，如果之前也没有则为0
+            const progressValue = message.progress !== undefined && message.progress !== null 
+              ? message.progress 
+              : currentProgress;
+            
+            updateProgress(progressValue, message.errorMessage);
           } else {
             // 正常更新任务状态
+            // 如果 message.progress 没有值，使用之前的进度值，如果之前也没有则为0
+            const progressValue = message.progress !== undefined && message.progress !== null 
+              ? message.progress 
+              : currentProgress;
+            
             updateProgress(
-              message.progress || 0,
+              progressValue,
               getStatusText(message.status || 'unknown')
             );
             
             // 处理翻译策略数据
             if (message.translationStrategies) {
               displayTranslationStrategies(message.translationStrategies);
-            } else {
-              // **新增**：本地没有拿到，就让 background 去拉一次
-              console.log('本地没策略，主动请求后台获取一次');
-              chrome.runtime.sendMessage({
-                action: 'fetchTranslationStrategies',
-                taskId: currentTaskId,
-                videoId: currentVideoId
-              }, (response) => {
-                if (chrome.runtime.lastError) {
-                  console.error('请求后台获取翻译策略失败', chrome.runtime.lastError);
-                } else if (response && response.success && response.strategies) {
-                  // 拿到策略，存在本地再显示一次
-                  displayTranslationStrategies(response.strategies);
-                } else {
-                  console.warn('后台未返回策略');
-                }
-              });
-            }
+            } 
           
-
             // 如果任务完成或失败，更新UI
             if (message.status === 'completed') {
               // 修改按钮为"应用字幕"
@@ -597,6 +592,9 @@ document.addEventListener('DOMContentLoaded', async () => {
    * 更新进度显示
    */
   function updateProgress(progress, statusText) {
+    // 更新当前进度值
+    currentProgress = progress;
+    
     const percentage = Math.round(progress * 100);
     progressFill.style.width = `${percentage}%`;
     progressPercentage.textContent = `${percentage}%`;

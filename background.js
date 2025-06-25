@@ -9,6 +9,9 @@ const API_SERVER = 'https://api.rxaigc.com';
 // 任务状态轮询间隔（毫秒）
 const POLLING_INTERVAL = 15000;
 
+// 最大轮询次数限制
+const MAX_POLLING_COUNT = 240; // 240次 * 15秒 = 1小时
+
 // 活跃任务管理
 const activeTasks = {};
 
@@ -451,11 +454,12 @@ function startTaskPolling(taskId, videoId) {
     progress: 0,
     startTime: new Date().toISOString(),
     lastCheck: new Date().toISOString(),
-    errorCount: 0 // 初始化错误计数
+    errorCount: 0, // 初始化错误计数
+    pollCount: 0 // 初始化轮询计数
   };
   
   // 等待10秒后检查
-  setTimeout(() => checkTaskStatus(taskId), 10000);
+  setTimeout(() => checkTaskStatus(taskId), 20000);
   
   // 设置定时器
   const intervalId = setInterval(() => checkTaskStatus(taskId), POLLING_INTERVAL);
@@ -486,6 +490,37 @@ function stopTaskPolling(taskId) {
 async function checkTaskStatus(taskId) {
   if (!taskId || !activeTasks[taskId]) {
     console.log(`[Background] 找不到任务 ${taskId} 的状态`);
+    return;
+  }
+  
+  // 增加轮询计数
+  activeTasks[taskId].pollCount = (activeTasks[taskId].pollCount || 0) + 1;
+  
+  // 检查是否超过最大轮询次数
+  if (activeTasks[taskId].pollCount > MAX_POLLING_COUNT) {
+    console.error(`[Background] 任务 ${taskId} 轮询次数超过限制 (${MAX_POLLING_COUNT})，停止轮询`);
+    stopTaskPolling(taskId);
+    
+    // 更新任务状态为失败
+    activeTasks[taskId].status = 'failed';
+    activeTasks[taskId].errorMessage = '任务处理超时，请重试';
+    
+    // 保存失败状态
+    await saveTaskStatus(activeTasks[taskId].videoId, {
+      taskId: taskId,
+      status: 'failed',
+      errorMessage: activeTasks[taskId].errorMessage,
+      updatedAt: new Date().toISOString()
+    });
+    
+    // 通知前端任务超时
+    chrome.runtime.sendMessage({
+      action: 'taskStatusUpdate',
+      taskId: taskId,
+      status: 'failed',
+      errorMessage: activeTasks[taskId].errorMessage
+    });
+    
     return;
   }
   

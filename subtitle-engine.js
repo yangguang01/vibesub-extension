@@ -286,7 +286,7 @@ class SubtitleEngine {
     this.subtitleContainer.style.width = '100%';
     this.subtitleContainer.style.textAlign = 'center';
     this.subtitleContainer.style.color = 'white';
-    this.subtitleContainer.style.fontSize = '48px'; // 增大字体
+    this.subtitleContainer.style.fontSize = '40px'; // 增大字体
     this.subtitleContainer.style.textShadow = '2px 2px 4px rgba(0,0,0,0.8)'; // 增强阴影
     this.subtitleContainer.style.zIndex = '9999'; // 大幅提高z-index
     this.subtitleContainer.style.padding = '10px';

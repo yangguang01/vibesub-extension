@@ -1,6 +1,6 @@
 {
-  "name": "VibeSub - YouTube字幕翻译",
-  "version": "1.0.0",
+  "name": "test-VibeSub - 利用AI生成自然流畅的YouTube字幕翻译",
+  "version": "1.1.0",
   "manifest_version": 3,
   "description": "使用生成式AI模型翻译YouTube视频字幕",
   "icons": {

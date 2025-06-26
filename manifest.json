@@ -1,5 +1,5 @@
 {
-  "name": "test-VibeSub - 利用AI生成自然流畅的YouTube字幕翻译",
+  "name": "VibeSub - 使用AI生成专业且自然的YouTube中文字幕",
   "version": "1.1.0",
   "manifest_version": 3,
   "description": "使用生成式AI模型翻译YouTube视频字幕",
@@ -13,7 +13,7 @@
   "content_scripts": [
     {
       "matches": ["*://www.youtube.com/*"],
-      "js": ["subtitle-engine.js", "content.js"],
+      "js": ["debug.js", "subtitle-engine.js", "content.js"],
       "css": ["styles.css"]
     }
   ],
@@ -30,7 +30,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["*.srt"],
+      "resources": ["*.srt", "debug.js"],
       "matches": ["*://www.youtube.com/*"]
     }
   ]

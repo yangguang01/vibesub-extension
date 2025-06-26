@@ -4,7 +4,7 @@
  * 内容脚本，负责监测YouTube视频页面并初始化字幕显示
  */
 
-console.log('Tube Trans: 内容脚本已加载');
+TubeTransDebug.log('Tube Trans: 内容脚本已加载');
 
 let subtitleEngine = null;
 let currentVideoId = null;
@@ -17,13 +17,13 @@ let translationStatus = null; // 翻译状态
  * @returns {Promise<string>} SRT文件内容
  */
 async function loadSrtFile(videoId) {
-  console.log('加载字幕文件...');
+  TubeTransDebug.log('加载字幕文件...');
   
   try {
     // 首先尝试从本地存储加载
     const subtitles = await getSubtitleFromStorage(videoId);
     if (subtitles) {
-      console.log('从本地存储加载字幕成功');
+      TubeTransDebug.log('从本地存储加载字幕成功');
       return subtitles;
     }
     
@@ -31,10 +31,10 @@ async function loadSrtFile(videoId) {
     const srtUrl = chrome.runtime.getURL('test.srt');
     const response = await fetch(srtUrl);
     const srtContent = await response.text();
-    console.log('从测试文件加载字幕成功');
+    TubeTransDebug.log('从测试文件加载字幕成功');
     return srtContent;
   } catch (error) {
-    console.error('加载字幕文件失败:', error);
+    TubeTransDebug.error('加载字幕文件失败:', error);
     return null;
   }
 }
@@ -52,7 +52,7 @@ async function getSubtitleFromStorage(videoId) {
     const data = await chrome.storage.local.get([key]);
     return data[key] || null;
   } catch (error) {
-    console.error('从存储获取字幕失败:', error);
+    TubeTransDebug.error('从存储获取字幕失败:', error);
     return null;
   }
 }
@@ -69,10 +69,10 @@ async function saveSubtitleToStorage(videoId, srtContent) {
   try {
     const key = `subtitle_${videoId}`;
     await chrome.storage.local.set({ [key]: srtContent });
-    console.log(`字幕已保存到本地存储，键: ${key}`);
+    TubeTransDebug.log(`字幕已保存到本地存储，键: ${key}`);
     return true;
   } catch (error) {
-    console.error('保存字幕到存储失败:', error);
+    TubeTransDebug.error('保存字幕到存储失败:', error);
     return false;
   }
 }
@@ -90,26 +90,26 @@ function getVideoId() {
  * 初始化字幕引擎
  */
 async function initSubtitles() {
-  console.log('初始化字幕...');
+  TubeTransDebug.log('初始化字幕...');
   
   // 获取当前视频ID
   const videoId = getVideoId();
   if (!videoId) {
-    console.log('无法获取视频ID');
+    TubeTransDebug.log('无法获取视频ID');
     return false;
   }
   
   // 查找视频元素
   const videoElement = document.querySelector('video');
   if (!videoElement) {
-    console.log('未找到视频元素，稍后重试');
+    TubeTransDebug.log('未找到视频元素，稍后重试');
     return false;
   }
   
   // 加载字幕文件
   const srtContent = await loadSrtFile(videoId);
   if (!srtContent) {
-    console.log('未找到字幕内容，无法初始化字幕');
+    TubeTransDebug.log('未找到字幕内容，无法初始化字幕');
     return false;
   }
   
@@ -122,7 +122,7 @@ async function initSubtitles() {
   // 开始显示字幕
   subtitleEngine.start();
   
-  console.log('字幕初始化完成并开始显示');
+  TubeTransDebug.log('字幕初始化完成并开始显示');
   return true;
 }
 
@@ -132,7 +132,7 @@ async function initSubtitles() {
 function checkAndProcessVideo() {
   // 检查是否在YouTube视频页面
   if (window.location.href.indexOf('youtube.com/watch') === -1) {
-    console.log('不是YouTube视频页面，不处理字幕');
+    TubeTransDebug.log('不是YouTube视频页面，不处理字幕');
     return;
   }
   
@@ -140,7 +140,7 @@ function checkAndProcessVideo() {
   
   // 如果视频ID变更，重新初始化字幕
   if (videoId && videoId !== currentVideoId) {
-    console.log(`检测到新视频: ${videoId}，准备初始化字幕`);
+    TubeTransDebug.log(`检测到新视频: ${videoId}，准备初始化字幕`);
     
     // 停止现有字幕显示
     if (subtitleEngine) {
@@ -153,21 +153,21 @@ function checkAndProcessVideo() {
     // 先检查是否有本地保存的字幕
     getSubtitleFromStorage(videoId).then(subtitle => {
       if (subtitle) {
-        console.log('找到本地保存的字幕，初始化中...');
+        TubeTransDebug.log('找到本地保存的字幕，初始化中...');
         setTimeout(async () => {
           const success = await initSubtitles();
           if (!success) {
-            console.log('使用本地字幕初始化失败，稍后重试');
+            TubeTransDebug.log('使用本地字幕初始化失败，稍后重试');
             setTimeout(initSubtitles, 3000);  // 再次尝试
           }
         }, 2000);  // 等待视频加载
       } else {
-        console.log('未找到本地保存的字幕，请使用插件翻译功能');
+        TubeTransDebug.log('未找到本地保存的字幕，请使用插件翻译功能');
         // 可以在页面上显示提示，提醒用户使用翻译功能
         showTranslationStatus('未找到字幕，请点击插件图标翻译', false);
       }
     }).catch(error => {
-      console.error('检查本地字幕时出错:', error);
+      TubeTransDebug.error('检查本地字幕时出错:', error);
     });
   }
 }
@@ -177,7 +177,7 @@ function checkAndProcessVideo() {
  * @returns {Object} 视频信息对象
  */
 function getVideoInfo() {
-  console.log('[Content] 开始获取视频信息...');
+  TubeTransDebug.log('[Content] 开始获取视频信息...');
   
   // 获取视频ID
   const videoId = getVideoId();
@@ -195,7 +195,7 @@ function getVideoInfo() {
     const titleElement = document.querySelector(selector);
     if (titleElement && titleElement.textContent.trim()) {
       title = titleElement.textContent.trim();
-      console.log(`[Content] 使用选择器"${selector}"获取标题:`, title);
+      TubeTransDebug.log(`[Content] 使用选择器"${selector}"获取标题:`, title);
       break;
     }
   }
@@ -216,7 +216,7 @@ function getVideoInfo() {
     const channelElement = document.querySelector(selector);
     if (channelElement && channelElement.textContent.trim()) {
       channelName = channelElement.textContent.trim();
-      console.log(`[Content] 使用选择器"${selector}"获取频道名:`, channelName);
+      TubeTransDebug.log(`[Content] 使用选择器"${selector}"获取频道名:`, channelName);
       break;
     }
   }
@@ -244,7 +244,7 @@ function getVideoInfo() {
     description: description
   };
   
-  console.log('[Content] 获取到视频信息:', videoInfo);
+  TubeTransDebug.log('[Content] 获取到视频信息:', videoInfo);
   return videoInfo;
 }
 
@@ -295,7 +295,7 @@ function waitForElement(selector, timeout = 5000) {
  * @returns {Promise<Object>} 视频信息对象
  */
 async function getCompleteVideoInfo() {
-  console.log('[Content] 获取完整视频信息...');
+  TubeTransDebug.log('[Content] 获取完整视频信息...');
   
   if (!isYouTubeVideoPage()) {
     throw new Error('当前页面不是YouTube视频页面');
@@ -310,7 +310,7 @@ async function getCompleteVideoInfo() {
   
   // 如果标题或频道名为空，再等待一段时间重试
   if (videoInfo.title === '未知标题' || videoInfo.channelName === '未知频道') {
-    console.log('[Content] 信息不完整，等待1秒后重试...');
+    TubeTransDebug.log('[Content] 信息不完整，等待1秒后重试...');
     await new Promise(resolve => setTimeout(resolve, 1000));
     return getVideoInfo();
   }
@@ -353,29 +353,29 @@ function showTranslationStatus(message, isLoading = false) {
 
 // 启动周期性检查
 function startMonitoring() {
-  console.log('开始监控YouTube视频');
+  TubeTransDebug.log('开始监控YouTube视频');
   
   // 添加一个诊断工具，可以在控制台调用
   window.debugSubtitles = function() {
-    console.log('------ 字幕调试信息 ------');
-    console.log('当前视频ID:', currentVideoId);
-    console.log('字幕引擎状态:', subtitleEngine ? '已初始化' : '未初始化');
+    TubeTransDebug.log('------ 字幕调试信息 ------');
+    TubeTransDebug.log('当前视频ID:', currentVideoId);
+    TubeTransDebug.log('字幕引擎状态:', subtitleEngine ? '已初始化' : '未初始化');
     
     const videoElement = document.querySelector('video');
-    console.log('视频元素:', videoElement);
+    TubeTransDebug.log('视频元素:', videoElement);
     
     const subtitleContainer = document.querySelector('.youtube-custom-subtitle');
-    console.log('字幕容器:', subtitleContainer);
+    TubeTransDebug.log('字幕容器:', subtitleContainer);
     
     if (subtitleContainer) {
-      console.log('字幕容器样式:', {
+      TubeTransDebug.log('字幕容器样式:', {
         'display': subtitleContainer.style.display,
         'visibility': subtitleContainer.style.visibility,
         'zIndex': subtitleContainer.style.zIndex,
         'position': subtitleContainer.style.position,
         'bottom': subtitleContainer.style.bottom
       });
-      console.log('字幕容器内容:', subtitleContainer.innerHTML);
+      TubeTransDebug.log('字幕容器内容:', subtitleContainer.innerHTML);
       
       // 尝试强制显示字幕
       subtitleContainer.style.display = 'block';
@@ -384,7 +384,7 @@ function startMonitoring() {
       subtitleContainer.style.backgroundColor = 'rgba(255,0,0,0.3)';
       subtitleContainer.innerHTML = '<span style="background-color: black; color: white; padding: 5px;">测试字幕 - 如果看到此内容，则字幕系统工作正常</span>';
       
-      console.log('已尝试强制显示测试字幕');
+      TubeTransDebug.log('已尝试强制显示测试字幕');
     }
     
     return '字幕调试完成，请查看控制台输出';
@@ -403,7 +403,7 @@ function startMonitoring() {
   const urlObserver = new MutationObserver(() => {
     if (lastUrl !== window.location.href) {
       lastUrl = window.location.href;
-      console.log('检测到URL变化，重新检查视频');
+      TubeTransDebug.log('检测到URL变化，重新检查视频');
       checkAndProcessVideo();
     }
   });
@@ -416,19 +416,19 @@ function startMonitoring() {
 
 // 监听来自弹出窗口的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('[Content] 收到消息:', message);
+  TubeTransDebug.log('[Content] 收到消息:', message);
   
   // 处理获取视频信息请求
   if (message.action === 'getVideoInfo') {
-    console.log('[Content] 处理获取视频信息请求...');
+    TubeTransDebug.log('[Content] 处理获取视频信息请求...');
     
     getCompleteVideoInfo()
       .then(videoInfo => {
-        console.log('[Content] 成功获取视频信息:', videoInfo);
+        TubeTransDebug.log('[Content] 成功获取视频信息:', videoInfo);
         sendResponse({ success: true, videoInfo: videoInfo });
       })
       .catch(error => {
-        console.error('[Content] 获取视频信息失败:', error);
+        TubeTransDebug.error('[Content] 获取视频信息失败:', error);
         sendResponse({ 
           success: false, 
           error: error.message || '获取视频信息失败' 
@@ -453,7 +453,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success, message: success ? '字幕已保存' : '保存字幕失败' });
       })
       .catch(error => {
-        console.error('[Content] 保存字幕时出错:', error);
+        TubeTransDebug.error('[Content] 保存字幕时出错:', error);
         sendResponse({ success: false, message: error.message });
       });
     
@@ -462,7 +462,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   // 处理应用字幕请求
   if (message.action === 'applySubtitles') {
-    console.log('[Content] 处理应用字幕请求...');
+    TubeTransDebug.log('[Content] 处理应用字幕请求...');
     
     // 停止现有字幕显示
     if (subtitleEngine) {
@@ -472,7 +472,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     // 重新初始化字幕
     initSubtitles().then(success => {
-      console.log('[Content] 字幕应用结果:', success);
+      TubeTransDebug.log('[Content] 字幕应用结果:', success);
       sendResponse({ success, message: success ? '字幕已应用' : '应用字幕失败' });
     });
     

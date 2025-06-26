@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.documentElement.style.height = finalHeight + 'px';
     document.documentElement.style.minHeight = finalHeight + 'px';
     
-    console.log(`调整弹出窗口高度: ${finalHeight}px (内容高度: ${contentHeight}px)`);
+    TubeTransDebug.log(`调整弹出窗口高度: ${finalHeight}px (内容高度: ${contentHeight}px)`);
   }
 
   // 在显示内容变化时调整高度
@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (currentVideoId) loadTaskStatus();
         }
       } catch (e) {
-        console.error('解析URL失败:', e);
+        TubeTransDebug.error('解析URL失败:', e);
       }
     }
   });
@@ -147,7 +147,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   async function getCurrentVideoInfo() {
     try {
-      console.log('[Popup] 开始获取视频信息...');
+      TubeTransDebug.log('[Popup] 开始获取视频信息...');
       
       // 获取当前标签页
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // 检查是否在YouTube视频页面
       if (!currentTab.url.includes('youtube.com/watch')) {
-        console.log('[Popup] 不是YouTube视频页面');
+        TubeTransDebug.log('[Popup] 不是YouTube视频页面');
         showNoVideoMessage();
         return;
       }
@@ -166,14 +166,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const videoId = urlParams.get('v');
         if (videoId) {
           currentVideoId = videoId;
-          console.log('[Popup] 从URL获取视频ID:', videoId);
+          TubeTransDebug.log('[Popup] 从URL获取视频ID:', videoId);
         }
       } catch (e) {
-        console.error('[Popup] 解析URL失败:', e);
+        TubeTransDebug.error('[Popup] 解析URL失败:', e);
       }
       
       // 通过Content Script获取完整视频信息
-      console.log('[Popup] 向Content Script请求视频信息...');
+      TubeTransDebug.log('[Popup] 向Content Script请求视频信息...');
       
       const response = await new Promise((resolve) => {
         chrome.tabs.sendMessage(
@@ -181,7 +181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           { action: 'getVideoInfo' }, 
           (response) => {
             if (chrome.runtime.lastError) {
-              console.error('[Popup] Content Script通信失败:', chrome.runtime.lastError);
+              TubeTransDebug.error('[Popup] Content Script通信失败:', chrome.runtime.lastError);
               resolve({ success: false, error: chrome.runtime.lastError.message });
             } else {
               resolve(response);
@@ -190,7 +190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         );
       });
       
-      console.log('[Popup] 收到Content Script响应:', response);
+      TubeTransDebug.log('[Popup] 收到Content Script响应:', response);
       
       if (response && response.success && response.videoInfo) {
         // 成功获取视频信息
@@ -201,15 +201,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           currentVideoId = response.videoInfo.videoId;
         }
         
-        console.log('[Popup] 视频信息更新完成');
+        TubeTransDebug.log('[Popup] 视频信息更新完成');
       } else {
         // 获取失败，显示错误信息
-        console.error('[Popup] 获取视频信息失败:', response ? response.error : '未知错误');
+        TubeTransDebug.error('[Popup] 获取视频信息失败:', response ? response.error : '未知错误');
         showNoVideoMessage();
       }
       
     } catch (error) {
-      console.error('[Popup] 获取视频信息异常:', error);
+      TubeTransDebug.error('[Popup] 获取视频信息异常:', error);
       showNoVideoMessage();
     }
   }
@@ -218,7 +218,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    * 更新视频信息显示
    */
   function updateVideoInfo(videoInfo) {
-    console.log('收到视频信息:', videoInfo);
+    TubeTransDebug.log('收到视频信息:', videoInfo);
     
     // 更新标题
     if (videoInfo.title) {
@@ -227,10 +227,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // 更新频道名称
     if (videoInfo.channelName) {
-      console.log('设置频道名称:', videoInfo.channelName);
+      TubeTransDebug.log('设置频道名称:', videoInfo.channelName);
       channelNameEl.textContent = videoInfo.channelName;
     } else {
-      console.log('没有收到频道名称或为空');
+      TubeTransDebug.log('没有收到频道名称或为空');
       channelNameEl.textContent = '--';
     }
     
@@ -331,7 +331,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // language: targetLangSelect.value
       };
       
-      console.log('向Background发送创建任务请求:', taskData);
+      TubeTransDebug.log('向Background发送创建任务请求:', taskData);
       
       // 通过Background Script创建任务
       const response = await new Promise((resolve) => {
@@ -341,7 +341,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, resolve);
       });
       
-      console.log('收到Background响应:', response);
+      TubeTransDebug.log('收到Background响应:', response);
       
       if (response && response.success) {
         // 任务创建成功
@@ -353,7 +353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 设置监听来自后台的消息
         setupBackgroundMessageListener();
         
-        console.log('翻译任务创建成功，任务ID:', currentTaskId);
+        TubeTransDebug.log('翻译任务创建成功，任务ID:', currentTaskId);
         
       } else {
         // 任务创建失败
@@ -382,7 +382,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       
     } catch (error) {
-      console.error('提交翻译任务异常:', error);
+      TubeTransDebug.error('提交翻译任务异常:', error);
       alert(`提交翻译任务失败: ${error.message}`);
       
       // 恢复按钮状态
@@ -399,7 +399,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!window.hasBackgroundListener) {
       chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message.action === 'taskStatusUpdate' && message.taskId === currentTaskId) {
-          console.log('收到后台任务状态更新:', message);
+          TubeTransDebug.log('收到后台任务状态更新:', message);
           
           // 检查是否有错误信息
           if (message.isError && message.errorMessage) {
@@ -458,7 +458,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   async function loadTaskStatus() {
     if (!currentVideoId) {
-      console.log('无法获取状态');
+      TubeTransDebug.log('无法获取状态');
       return;
     }
     
@@ -466,13 +466,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       const key = `task_status_${currentVideoId}`;
       const data = await chrome.storage.local.get([key]);
       const taskStatus = data[key];
-      console.log('从存储加载任务状态:', taskStatus);
+      TubeTransDebug.log('从存储加载任务状态:', taskStatus);
 
       // 加载并恢复翻译策略
       const strategyFlagKey = `has_translation_strategies_${currentVideoId}`;
       const strategyDataKey = `translation_strategies_${currentVideoId}`;
       const strategyData = await chrome.storage.local.get([strategyFlagKey, strategyDataKey]);
-      console.log('从存储加载翻译策略:', strategyData);
+      TubeTransDebug.log('从存储加载翻译策略:', strategyData);
       
       if (taskStatus) {
         // 有任务记录，恢复状态
@@ -493,14 +493,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       
         } else {
           // **新增**：本地没有拿到，就让 background 去拉一次
-          console.log('本地没策略，主动请求后台获取一次');
+          TubeTransDebug.log('本地没策略，主动请求后台获取一次');
           chrome.runtime.sendMessage({
             action: 'fetchTranslationStrategies',
             taskId: currentTaskId,
             videoId: currentVideoId
           }, (response) => {
             if (chrome.runtime.lastError) {
-              console.error('请求后台获取翻译策略失败', chrome.runtime.lastError);
+              TubeTransDebug.error('请求后台获取翻译策略失败', chrome.runtime.lastError);
             } else if (response && response.success && response.strategies) {
               // 拿到策略，存在本地再显示一次
               displayTranslationStrategies(response.strategies);
@@ -540,9 +540,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             taskId: currentTaskId
           }, (response) => {
             if (chrome.runtime.lastError) {
-              console.error('查询后台任务状态失败:', chrome.runtime.lastError);
+              TubeTransDebug.error('查询后台任务状态失败:', chrome.runtime.lastError);
             } else if (response && response.success && response.status) {
-              console.log('从后台获取到任务状态:', response.status);
+              TubeTransDebug.log('从后台获取到任务状态:', response.status);
               
               // 根据最新状态更新UI
               updateProgress(
@@ -564,7 +564,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
     } catch (error) {
-      console.error('加载任务状态失败:', error);
+      TubeTransDebug.error('加载任务状态失败:', error);
     }
   }
   
@@ -575,7 +575,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   async function saveTaskStatus(videoId, status) {
     // 这个函数现在主要由background处理，popup端保留用于向后兼容
-    console.log('popup.js中的saveTaskStatus已废弃，请使用background处理存储操作');
+    TubeTransDebug.log('popup.js中的saveTaskStatus已废弃，请使用background处理存储操作');
   }
   
   /**
@@ -585,7 +585,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   async function updateTranslationStrategies(videoId, strategies_data) {
     // 这个函数现在主要由background处理，popup端保留用于向后兼容
-    console.log('popup.js中的updateTranslationStrategies已废弃，请使用background处理存储操作');
+    TubeTransDebug.log('popup.js中的updateTranslationStrategies已废弃，请使用background处理存储操作');
   }
   
   /**
@@ -610,15 +610,15 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   function displayTranslationStrategies(data) {
     // 记录传入的翻译策略数据
-    console.log('传入的翻译策略数据:', data);
+    TubeTransDebug.log('传入的翻译策略数据:', data);
 
     // 直接获取translation_strategies数组
     const strategies = data.strategies || [];
-    console.log('获取到的翻译策略数据:', strategies);
+    TubeTransDebug.log('获取到的翻译策略数据:', strategies);
 
     // 如果没有策略数据，不显示翻译策略区域
     if (!strategies || strategies.length === 0) {
-      console.log('翻译策略数据格式有问题或为空，不显示策略区域');
+      TubeTransDebug.log('翻译策略数据格式有问题或为空，不显示策略区域');
       return;
     }
     
@@ -632,14 +632,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 清空现有策略列表
     strategiesList.innerHTML = '';
     
-    console.log('开始写入翻译策略数据');
+    TubeTransDebug.log('开始写入翻译策略数据');
     // 添加策略条目
     strategies.forEach(strategy => {
       const li = document.createElement('li');
       li.textContent = strategy;
       strategiesList.appendChild(li);
     });
-    console.log('写入翻译策略数据完成');
+    TubeTransDebug.log('写入翻译策略数据完成');
     // 更新UI高度
     updateUI();
   }
@@ -684,7 +684,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         { action: 'applySubtitles' },
         (response) => {
           if (chrome.runtime.lastError) {
-            console.error('应用字幕失败:', chrome.runtime.lastError);
+            TubeTransDebug.error('应用字幕失败:', chrome.runtime.lastError);
             alert('应用字幕失败，请刷新页面重试');
             
             // 恢复按钮状态
@@ -706,7 +706,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       );
     } catch (error) {
-      console.error('应用字幕失败:', error);
+      TubeTransDebug.error('应用字幕失败:', error);
       alert(`应用字幕失败: ${error.message}`);
       
       // 恢复按钮状态
@@ -735,14 +735,14 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   async function checkLoginStatus() {
     try {
-      console.log('向background请求检查登录状态...');
+      TubeTransDebug.log('向background请求检查登录状态...');
       
       const response = await new Promise((resolve) => {
         chrome.runtime.sendMessage({ action: 'checkLoginStatus' }, resolve);
       });
       
       if (response && !chrome.runtime.lastError) {
-        console.log('收到登录状态响应:', response);
+        TubeTransDebug.log('收到登录状态响应:', response);
         
         if (response.isLoggedIn && response.userInfo) {
           userInfo = response.userInfo;
@@ -752,12 +752,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           updateLoginStatus(false);
         }
       } else {
-        console.error('检查登录状态失败:', chrome.runtime.lastError);
+        TubeTransDebug.error('检查登录状态失败:', chrome.runtime.lastError);
         userInfo = null;
         updateLoginStatus(false);
       }
     } catch (error) {
-      console.error('检查登录状态异常:', error);
+      TubeTransDebug.error('检查登录状态异常:', error);
       userInfo = null;
       updateLoginStatus(false);
     }
@@ -818,14 +818,14 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   async function logout() {
     try {
-      console.log('向background请求登出...');
+      TubeTransDebug.log('向background请求登出...');
       
       const response = await new Promise((resolve) => {
         chrome.runtime.sendMessage({ action: 'logout' }, resolve);
       });
       
       if (response && response.success) {
-        console.log('登出成功');
+        TubeTransDebug.log('登出成功');
         userInfo = null;
         updateLoginStatus(false);
         
@@ -834,10 +834,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           userDropdown.style.display = 'none';
         }
       } else {
-        console.error('登出失败:', response ? response.message : '未知错误');
+        TubeTransDebug.error('登出失败:', response ? response.message : '未知错误');
       }
     } catch (error) {
-      console.error('登出异常:', error);
+      TubeTransDebug.error('登出异常:', error);
     }
   }
   
@@ -846,7 +846,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   async function testSetLoginStatus() {
     try {
-      console.log('向background请求设置测试登录状态...');
+      TubeTransDebug.log('向background请求设置测试登录状态...');
       
       const testUserInfo = {
         username: '测试用户',
@@ -862,14 +862,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       
       if (response && response.isLoggedIn) {
-        console.log('设置测试登录状态成功:', response);
+        TubeTransDebug.log('设置测试登录状态成功:', response);
         userInfo = response.userInfo;
         updateLoginStatus(true);
       } else {
-        console.error('设置测试登录状态失败:', response ? response.error : '未知错误');
+        TubeTransDebug.error('设置测试登录状态失败:', response ? response.error : '未知错误');
       }
     } catch (error) {
-      console.error('设置测试登录状态异常:', error);
+      TubeTransDebug.error('设置测试登录状态异常:', error);
     }
   }
   
@@ -881,7 +881,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    * 仅用于开发测试
    */
   async function testTranslationStrategies() {
-    console.log('启动翻译策略测试...');
+    TubeTransDebug.log('启动翻译策略测试...');
     
     if (!currentVideoId) {
       alert('无法获取当前视频ID');
@@ -894,15 +894,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       const strategyDataKey = `translation_strategies_${currentVideoId}`;
       
       const strategyData = await chrome.storage.local.get([strategyFlagKey, strategyDataKey]);
-      console.log('从存储加载翻译策略数据:', strategyData);
+      TubeTransDebug.log('从存储加载翻译策略数据:', strategyData);
       
       if (strategyData[strategyFlagKey] && strategyData[strategyDataKey]) {
         // 有存储的策略数据，直接显示
-        console.log('找到存储的翻译策略，开始显示...');
+        TubeTransDebug.log('找到存储的翻译策略，开始显示...');
         displayTranslationStrategies(strategyData[strategyDataKey]);
       } else {
         // 没有存储的策略数据，尝试从接口获取
-        console.log('未找到存储的翻译策略，尝试从接口获取...');
+        TubeTransDebug.log('未找到存储的翻译策略，尝试从接口获取...');
         
         // 检查是否有当前任务ID
         if (!currentTaskId) {
@@ -911,20 +911,20 @@ document.addEventListener('DOMContentLoaded', async () => {
           const taskData = await chrome.storage.local.get([taskStatusKey]);
           if (taskData[taskStatusKey] && taskData[taskStatusKey].taskId) {
             currentTaskId = taskData[taskStatusKey].taskId;
-            console.log('从存储中找到任务ID:', currentTaskId);
+            TubeTransDebug.log('从存储中找到任务ID:', currentTaskId);
           }
         }
         
         if (currentTaskId) {
           try {
-            console.log('调用接口获取翻译策略...');
+            TubeTransDebug.log('调用接口获取翻译策略...');
             const response = await fetch(`${API_SERVER}/api/tasks/${currentTaskId}/strategies`, {
               credentials: 'include'
             });
             
             if (response.ok) {
               const strategiesData = await response.json();
-              console.log('接口返回翻译策略数据:', strategiesData);
+              TubeTransDebug.log('接口返回翻译策略数据:', strategiesData);
               
               // 保存到本地存储
               await updateTranslationStrategies(currentVideoId, strategiesData);
@@ -933,15 +933,15 @@ document.addEventListener('DOMContentLoaded', async () => {
               displayTranslationStrategies(strategiesData);
               return;
             } else {
-              console.error('接口调用失败:', response.status);
+              TubeTransDebug.error('接口调用失败:', response.status);
             }
           } catch (apiError) {
-            console.error('调用接口获取翻译策略失败:', apiError);
+            TubeTransDebug.error('调用接口获取翻译策略失败:', apiError);
           }
         }
         
         // 如果接口调用失败或没有任务ID，使用测试数据
-        console.log('使用测试数据作为回退...');
+        TubeTransDebug.log('使用测试数据作为回退...');
         const testData = {
           strategies: [
             "准确翻译和解释关键技术名词，特别是'Transformer'应直接采用音译'变换器'，并首次出现时给出简要定义。",
@@ -956,7 +956,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       
     } catch (error) {
-      console.error('获取翻译策略数据失败:', error);
+      TubeTransDebug.error('获取翻译策略数据失败:', error);
       alert('获取翻译策略数据失败: ' + error.message);
     }
   }

@@ -6,7 +6,7 @@
 
 class SubtitleEngine {
   constructor(videoElement) {
-    console.log('SubtitleEngine: 初始化字幕引擎');
+    TubeTransDebug.log('SubtitleEngine: 初始化字幕引擎');
     this.video = videoElement;
     this.subtitles = [];
     this.currentSubtitle = null;
@@ -40,10 +40,10 @@ class SubtitleEngine {
       if (data.subtitlePosition) {
         this.subtitleX = data.subtitlePosition.x || 0;
         this.subtitleY = data.subtitlePosition.y || 0;
-        console.log('SubtitleEngine: 加载位置设置', { x: this.subtitleX, y: this.subtitleY });
+        TubeTransDebug.log('SubtitleEngine: 加载位置设置', { x: this.subtitleX, y: this.subtitleY });
       }
     } catch (error) {
-      console.error('SubtitleEngine: 加载位置设置失败', error);
+      TubeTransDebug.error('SubtitleEngine: 加载位置设置失败', error);
     }
   }
 
@@ -58,9 +58,9 @@ class SubtitleEngine {
           y: this.subtitleY
         }
       });
-      console.log('SubtitleEngine: 保存位置设置', { x: this.subtitleX, y: this.subtitleY });
+      TubeTransDebug.log('SubtitleEngine: 保存位置设置', { x: this.subtitleX, y: this.subtitleY });
     } catch (error) {
-      console.error('SubtitleEngine: 保存位置设置失败', error);
+      TubeTransDebug.error('SubtitleEngine: 保存位置设置失败', error);
     }
   }
 
@@ -83,7 +83,7 @@ class SubtitleEngine {
       document.addEventListener('mousemove', this.handleMouseMove);
       document.addEventListener('mouseup', this.handleMouseUp);
       
-      console.log('SubtitleEngine: 开始拖拽字幕');
+      TubeTransDebug.log('SubtitleEngine: 开始拖拽字幕');
     }
   }
 
@@ -121,7 +121,7 @@ class SubtitleEngine {
       // 保存位置设置
       this.savePositionSettings();
       
-      console.log('SubtitleEngine: 结束拖拽字幕', { x: this.subtitleX, y: this.subtitleY });
+      TubeTransDebug.log('SubtitleEngine: 结束拖拽字幕', { x: this.subtitleX, y: this.subtitleY });
     }
   }
 
@@ -153,7 +153,7 @@ class SubtitleEngine {
       // 保存设置
       this.savePositionSettings();
       
-      console.log('SubtitleEngine: 字幕位置已重置');
+      TubeTransDebug.log('SubtitleEngine: 字幕位置已重置');
       
       // 简单的视觉反馈
       this.subtitleContainer.style.transition = 'all 0.3s ease';
@@ -193,7 +193,7 @@ class SubtitleEngine {
          }, 4000);
        }
      } catch (error) {
-       console.error('SubtitleEngine: 显示提示失败', error);
+       TubeTransDebug.error('SubtitleEngine: 显示提示失败', error);
      }
    }
 
@@ -202,7 +202,7 @@ class SubtitleEngine {
    * @param {string} srtContent - SRT文件内容
    */
   parseSRT(srtContent) {
-    console.log('SubtitleEngine: 开始解析SRT文件');
+    TubeTransDebug.log('SubtitleEngine: 开始解析SRT文件');
     
     // 分割字幕块
     const srtLines = srtContent.split('\n');
@@ -254,7 +254,7 @@ class SubtitleEngine {
     }
     
     this.subtitles = subtitles;
-    console.log(`SubtitleEngine: 解析完成，共有 ${this.subtitles.length} 条字幕`);
+    TubeTransDebug.log(`SubtitleEngine: 解析完成，共有 ${this.subtitles.length} 条字幕`);
     return subtitles;
   }
   
@@ -272,7 +272,7 @@ class SubtitleEngine {
    * 创建字幕容器
    */
   createSubtitleContainer() {
-    console.log('SubtitleEngine: 创建字幕容器');
+    TubeTransDebug.log('SubtitleEngine: 创建字幕容器');
     
     if (this.subtitleContainer) {
       return;
@@ -299,19 +299,19 @@ class SubtitleEngine {
     const videoPlayer = document.querySelector('.html5-video-player');
     if (videoPlayer) {
       videoPlayer.appendChild(this.subtitleContainer);
-      console.log('SubtitleEngine: 字幕容器已添加到视频播放器中');
+      TubeTransDebug.log('SubtitleEngine: 字幕容器已添加到视频播放器中');
     } else {
       const videoContainer = this.video.closest('.html5-video-container');
       if (videoContainer) {
         videoContainer.appendChild(this.subtitleContainer);
-        console.log('SubtitleEngine: 字幕容器已添加到视频容器中');
+        TubeTransDebug.log('SubtitleEngine: 字幕容器已添加到视频容器中');
       } else {
         // 最后尝试直接附加到视频旁边
         if (this.video.parentElement) {
           this.video.parentElement.appendChild(this.subtitleContainer);
-          console.log('SubtitleEngine: 字幕容器已添加到视频父元素中');
+          TubeTransDebug.log('SubtitleEngine: 字幕容器已添加到视频父元素中');
         } else {
-          console.error('SubtitleEngine: 无法找到合适的容器，字幕容器未添加');
+          TubeTransDebug.error('SubtitleEngine: 无法找到合适的容器，字幕容器未添加');
         }
       }
     }
@@ -327,7 +327,7 @@ class SubtitleEngine {
     this.showUsageHint();
     
     // 记录创建成功
-    console.log('字幕容器详情:', {
+    TubeTransDebug.log('字幕容器详情:', {
       '存在DOM中': !!document.querySelector('.youtube-custom-subtitle'),
       'z-index': this.subtitleContainer.style.zIndex,
       '位置': this.subtitleContainer.style.bottom,
@@ -352,7 +352,7 @@ class SubtitleEngine {
     // 添加一些HTML结构使字幕更容易阅读
     this.subtitleContainer.innerHTML = `<span style="background-color: rgba(0,0,0,0.5); padding: 3px 8px; border-radius: 4px;">${text}</span>`;
     
-    console.log('显示字幕:', {
+    TubeTransDebug.log('显示字幕:', {
       '文本': text,
       '容器可见性': this.subtitleContainer.style.display,
       '字幕HTML': this.subtitleContainer.innerHTML
@@ -365,7 +365,7 @@ class SubtitleEngine {
   clearSubtitle() {
     if (this.subtitleContainer) {
       this.subtitleContainer.innerHTML = '';
-      console.log('字幕已清除');
+      TubeTransDebug.log('字幕已清除');
     }
   }
   
@@ -373,10 +373,10 @@ class SubtitleEngine {
    * 开始检查并显示字幕
    */
   start() {
-    console.log('SubtitleEngine: 开始监控视频时间并显示字幕');
+    TubeTransDebug.log('SubtitleEngine: 开始监控视频时间并显示字幕');
     
     if (!this.video || this.subtitles.length === 0) {
-      console.error('SubtitleEngine: 视频元素或字幕不可用，无法开始显示字幕');
+      TubeTransDebug.error('SubtitleEngine: 视频元素或字幕不可用，无法开始显示字幕');
       return;
     }
     
@@ -397,7 +397,7 @@ class SubtitleEngine {
         const subtitle = this.subtitles[i];
         if (currentTime >= subtitle.start && currentTime <= subtitle.end) {
           if (!this.currentSubtitle || this.currentSubtitle !== subtitle) {
-            console.log(`SubtitleEngine: 显示字幕 - ${subtitle.text}`);
+            TubeTransDebug.log(`SubtitleEngine: 显示字幕 - ${subtitle.text}`);
             this.currentSubtitle = subtitle;
             this.showSubtitle(subtitle.text);
           }
@@ -408,7 +408,7 @@ class SubtitleEngine {
       
       // 如果当前时间没有字幕，清除显示
       if (!foundSubtitle && this.currentSubtitle) {
-        console.log('SubtitleEngine: 清除字幕');
+        TubeTransDebug.log('SubtitleEngine: 清除字幕');
         this.currentSubtitle = null;
         this.clearSubtitle();
       }
@@ -419,7 +419,7 @@ class SubtitleEngine {
    * 停止显示字幕
    */
   stop() {
-    console.log('SubtitleEngine: 停止字幕显示');
+    TubeTransDebug.log('SubtitleEngine: 停止字幕显示');
     
     if (this.checkInterval) {
       clearInterval(this.checkInterval);

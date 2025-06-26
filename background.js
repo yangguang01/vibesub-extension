@@ -3,6 +3,9 @@
  * 后台脚本 (Background Script)
  */
 
+// 引入调试模块
+importScripts('debug.js');
+
 // API服务器地址
 const API_SERVER = 'https://api.rxaigc.com';
 
@@ -37,7 +40,7 @@ class LoginManager {
     this.isCheckingLogin = true;
     
     try {
-      console.log('开始检查登录状态...');
+      TubeTransDebug.log('开始检查登录状态...');
       
       // 检查.rxaigc.com域名下的session cookie
       const cookies = await chrome.cookies.getAll({
@@ -48,7 +51,7 @@ class LoginManager {
       const sessionCookie = cookies.find(cookie => cookie.name === 'session');
       
       if (sessionCookie && sessionCookie.value) {
-        console.log('找到session cookie，用户已登录');
+        TubeTransDebug.log('找到session cookie，用户已登录');
         
         // 调用fetchUserInfo获取最新的用户信息和daily_quota
         const userInfo = await this.fetchUserInfo();
@@ -65,12 +68,12 @@ class LoginManager {
           return { isLoggedIn: true, userInfo: this.userInfo };
         }
       } else {
-        console.log('未找到session cookie，用户未登录');
+        TubeTransDebug.log('未找到session cookie，用户未登录');
         this.userInfo = null;
         return { isLoggedIn: false, userInfo: null };
       }
     } catch (error) {
-      console.error('检查登录状态失败:', error);
+      TubeTransDebug.error('检查登录状态失败:', error);
       this.userInfo = null;
       return { isLoggedIn: false, userInfo: null };
     } finally {
@@ -89,7 +92,7 @@ class LoginManager {
       
       if (response.ok) {
         const limitInfo = await response.json();
-        console.log('从API获取用户限制信息:', limitInfo);
+        TubeTransDebug.log('从API获取用户限制信息:', limitInfo);
         
         // 格式化用户信息
         const userInfo = {
@@ -102,10 +105,10 @@ class LoginManager {
         
         return userInfo;
       } else {
-        console.log('获取用户限制信息失败，状态码:', response.status);
+        TubeTransDebug.log('获取用户限制信息失败，状态码:', response.status);
       }
     } catch (error) {
-      console.error('获取用户限制信息API调用失败:', error);
+      TubeTransDebug.error('获取用户限制信息API调用失败:', error);
     }
     
     return null;
@@ -117,7 +120,7 @@ class LoginManager {
    */
   async logout() {
     try {
-      console.log('开始用户登出...');
+      TubeTransDebug.log('开始用户登出...');
       
       // 清除本地存储的用户信息
       await chrome.storage.local.remove(['user_info']);
@@ -126,10 +129,10 @@ class LoginManager {
       // 可以在这里调用登出API（如果需要）
       // await this.callLogoutAPI();
       
-      console.log('用户登出成功');
+      TubeTransDebug.log('用户登出成功');
       return { success: true };
     } catch (error) {
-      console.error('登出失败:', error);
+      TubeTransDebug.error('登出失败:', error);
       return { success: false, message: error.message };
     }
   }
@@ -144,7 +147,7 @@ class LoginManager {
         credentials: 'include'
       });
     } catch (error) {
-      console.error('调用登出API失败:', error);
+      TubeTransDebug.error('调用登出API失败:', error);
     }
   }
 
@@ -172,7 +175,7 @@ class LoginManager {
     // 保存到存储
     await chrome.storage.local.set({ 'user_info': this.userInfo });
     
-    console.log('已设置测试登录状态:', this.userInfo);
+    TubeTransDebug.log('已设置测试登录状态:', this.userInfo);
     return { isLoggedIn: true, userInfo: this.userInfo };
   }
 }
@@ -195,7 +198,7 @@ class TaskManager {
    */
   async createTranslationTask(taskData) {
     try {
-      console.log('[TaskManager] 创建翻译任务:', taskData);
+      TubeTransDebug.log('[TaskManager] 创建翻译任务:', taskData);
       
       // 验证必要参数
       if (!taskData.youtube_url || !taskData.videoId) {
@@ -213,7 +216,7 @@ class TaskManager {
         language: taskData.language || 'zh-CN'
       };
 
-      console.log('[TaskManager] 发送API请求:', requestData);
+      TubeTransDebug.log('[TaskManager] 发送API请求:', requestData);
 
       // 发送API请求
       const response = await fetch(`${API_SERVER}/api/tasks`, {
@@ -223,7 +226,7 @@ class TaskManager {
         body: JSON.stringify(requestData)
       });
 
-      console.log('[TaskManager] API响应状态:', response.status);
+      TubeTransDebug.log('[TaskManager] API响应状态:', response.status);
 
       // 处理401未授权错误
       if (response.status === 401) {
@@ -238,7 +241,7 @@ class TaskManager {
 
       // 解析响应数据
       const data = await response.json();
-      console.log('[TaskManager] API响应数据:', data);
+      TubeTransDebug.log('[TaskManager] API响应数据:', data);
 
       if (!response.ok) {
         throw new Error(data.detail || data.message || '创建任务失败');
@@ -261,7 +264,7 @@ class TaskManager {
       // 开始轮询任务状态
       startTaskPolling(taskId, taskData.videoId);
 
-      console.log('[TaskManager] 任务创建成功:', taskId);
+      TubeTransDebug.log('[TaskManager] 任务创建成功:', taskId);
       return {
         success: true,
         taskId: taskId,
@@ -269,7 +272,7 @@ class TaskManager {
       };
 
     } catch (error) {
-      console.error('[TaskManager] 创建任务失败:', error);
+      TubeTransDebug.error('[TaskManager] 创建任务失败:', error);
       return {
         success: false,
         message: error.message || '创建任务失败'
@@ -288,9 +291,9 @@ class TaskManager {
     try {
       const key = `task_status_${videoId}`;
       await chrome.storage.local.set({ [key]: status });
-      console.log(`[TaskManager] 已保存任务状态: ${key}`, status);
+      TubeTransDebug.log(`[TaskManager] 已保存任务状态: ${key}`, status);
     } catch (error) {
-      console.error('[TaskManager] 保存任务状态失败:', error);
+      TubeTransDebug.error('[TaskManager] 保存任务状态失败:', error);
     }
   }
 
@@ -307,7 +310,7 @@ class TaskManager {
       const data = await chrome.storage.local.get([key]);
       return data[key] || null;
     } catch (error) {
-      console.error('[TaskManager] 从存储获取字幕失败:', error);
+      TubeTransDebug.error('[TaskManager] 从存储获取字幕失败:', error);
       return null;
     }
   }
@@ -318,11 +321,11 @@ const taskManager = new TaskManager();
 
 // 初始化监听器
 function initBackgroundListeners() {
-  console.log('[Background] 初始化后台任务监听器');
+  TubeTransDebug.log('[Background] 初始化后台任务监听器');
   
   // 监听来自popup或content script的消息
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    console.log('[Background] 收到消息:', message);
+    TubeTransDebug.log('[Background] 收到消息:', message);
     
     if (message.action === 'startTaskPolling') {
       // 开始轮询任务状态
@@ -344,11 +347,11 @@ function initBackgroundListeners() {
       case 'checkLoginStatus':
         loginManager.checkLoginStatus()
           .then(result => {
-            console.log('返回登录状态:', result);
+            TubeTransDebug.log('返回登录状态:', result);
             sendResponse(result);
           })
           .catch(error => {
-            console.error('检查登录状态失败:', error);
+            TubeTransDebug.error('检查登录状态失败:', error);
             sendResponse({ isLoggedIn: false, userInfo: null, error: error.message });
           });
         return true; // 保持消息通道开放
@@ -356,11 +359,11 @@ function initBackgroundListeners() {
       case 'logout':
         loginManager.logout()
           .then(result => {
-            console.log('登出结果:', result);
+            TubeTransDebug.log('登出结果:', result);
             sendResponse(result);
           })
           .catch(error => {
-            console.error('登出失败:', error);
+            TubeTransDebug.error('登出失败:', error);
             sendResponse({ success: false, message: error.message });
           });
         return true;
@@ -368,11 +371,11 @@ function initBackgroundListeners() {
       case 'setTestLoginStatus':
         loginManager.setTestLoginStatus(message.testUserInfo)
           .then(result => {
-            console.log('设置测试登录状态结果:', result);
+            TubeTransDebug.log('设置测试登录状态结果:', result);
             sendResponse(result);
           })
           .catch(error => {
-            console.error('设置测试登录状态失败:', error);
+            TubeTransDebug.error('设置测试登录状态失败:', error);
             sendResponse({ isLoggedIn: false, userInfo: null, error: error.message });
           });
         return true;
@@ -385,18 +388,18 @@ function initBackgroundListeners() {
       case 'createTranslationTask':
         taskManager.createTranslationTask(message.taskData)
           .then(result => {
-            console.log('创建翻译任务结果:', result);
+            TubeTransDebug.log('创建翻译任务结果:', result);
             sendResponse(result);
           })
           .catch(error => {
-            console.error('创建翻译任务失败:', error);
+            TubeTransDebug.error('创建翻译任务失败:', error);
             sendResponse({ success: false, message: error.message });
           });
         return true;
 
         case 'fetchTranslationStrategies': 
           const { taskId, videoId } = message;
-          console.log(`[Background] 收到 popup 的重拉策略请求：${taskId}`);
+          TubeTransDebug.log(`[Background] 收到 popup 的重拉策略请求：${taskId}`);
           
           // 调用已有的函数去拉取策略并存到 storage
           fetchTranslationStrategies(taskId, videoId)
@@ -407,7 +410,7 @@ function initBackgroundListeners() {
               sendResponse({ success: true, strategies: data[key] });
             })
             .catch(err => {
-              console.error(`[Background] fetchTranslationStrategies 错误：`, err);
+              TubeTransDebug.error(`[Background] fetchTranslationStrategies 错误：`, err);
               sendResponse({ success: false });
             });
     
@@ -417,17 +420,17 @@ function initBackgroundListeners() {
       case 'getSubtitleFromStorage':
         taskManager.getSubtitleFromStorage(message.videoId)
           .then(subtitle => {
-            console.log('获取字幕结果:', subtitle ? '字幕已找到' : '未找到字幕');
+            TubeTransDebug.log('获取字幕结果:', subtitle ? '字幕已找到' : '未找到字幕');
             sendResponse({ success: true, subtitle: subtitle });
           })
           .catch(error => {
-            console.error('获取字幕失败:', error);
+            TubeTransDebug.error('获取字幕失败:', error);
             sendResponse({ success: false, message: error.message });
           });
         return true;
       
       default:
-        console.log('未知消息类型:', message.action);
+        TubeTransDebug.log('未知消息类型:', message.action);
         sendResponse({ success: false, message: '未知消息类型' });
     }
   });
@@ -441,11 +444,11 @@ function initBackgroundListeners() {
 function startTaskPolling(taskId, videoId) {
   // 防止重复启动
   if (activeTasks[taskId] && activeTasks[taskId].intervalId) {
-    console.log(`[Background] 任务 ${taskId} 已在轮询中`);
+    TubeTransDebug.log(`[Background] 任务 ${taskId} 已在轮询中`);
     return;
   }
   
-  console.log(`[Background] 开始轮询任务 ${taskId} 的状态`);
+  TubeTransDebug.log(`[Background] 开始轮询任务 ${taskId} 的状态`);
   
   // 初始化任务状态
   activeTasks[taskId] = {
@@ -472,11 +475,11 @@ function startTaskPolling(taskId, videoId) {
  */
 function stopTaskPolling(taskId) {
   if (!activeTasks[taskId] || !activeTasks[taskId].intervalId) {
-    console.log(`[Background] 任务 ${taskId} 未在轮询`);
+    TubeTransDebug.log(`[Background] 任务 ${taskId} 未在轮询`);
     return;
   }
   
-  console.log(`[Background] 停止轮询任务 ${taskId} 的状态`);
+  TubeTransDebug.log(`[Background] 停止轮询任务 ${taskId} 的状态`);
   
   // 清除定时器
   clearInterval(activeTasks[taskId].intervalId);
@@ -489,7 +492,7 @@ function stopTaskPolling(taskId) {
  */
 async function checkTaskStatus(taskId) {
   if (!taskId || !activeTasks[taskId]) {
-    console.log(`[Background] 找不到任务 ${taskId} 的状态`);
+    TubeTransDebug.log(`[Background] 找不到任务 ${taskId} 的状态`);
     return;
   }
   
@@ -498,7 +501,7 @@ async function checkTaskStatus(taskId) {
   
   // 检查是否超过最大轮询次数
   if (activeTasks[taskId].pollCount > MAX_POLLING_COUNT) {
-    console.error(`[Background] 任务 ${taskId} 轮询次数超过限制 (${MAX_POLLING_COUNT})，停止轮询`);
+    TubeTransDebug.error(`[Background] 任务 ${taskId} 轮询次数超过限制 (${MAX_POLLING_COUNT})，停止轮询`);
     stopTaskPolling(taskId);
     
     // 更新任务状态为失败
@@ -528,13 +531,13 @@ async function checkTaskStatus(taskId) {
   activeTasks[taskId].lastCheck = new Date().toISOString();
   
   try {
-    console.log(`[Background] 正在检查任务 ${taskId} 的状态`);
+    TubeTransDebug.log(`[Background] 正在检查任务 ${taskId} 的状态`);
     const response = await fetch(`${API_SERVER}/api/tasks/${taskId}/status`, {
       credentials: 'include'
     });
     
     if (!response.ok) {
-      console.error(`[Background] 检查任务 ${taskId} 状态失败: ${response.status}`);
+      TubeTransDebug.error(`[Background] 检查任务 ${taskId} 状态失败: ${response.status}`);
       
       // 连续错误计数
       activeTasks[taskId].errorCount = (activeTasks[taskId].errorCount || 0) + 1;
@@ -551,7 +554,7 @@ async function checkTaskStatus(taskId) {
       
       // 如果连续错误超过5次，停止轮询
       if (activeTasks[taskId].errorCount > 5) {
-        console.error(`[Background] 任务 ${taskId} 连续错误超过限制，停止轮询`);
+        TubeTransDebug.error(`[Background] 任务 ${taskId} 连续错误超过限制，停止轮询`);
         stopTaskPolling(taskId);
         
         // 更新任务状态为失败
@@ -574,7 +577,7 @@ async function checkTaskStatus(taskId) {
     activeTasks[taskId].errorCount = 0;
     
     const data = await response.json();
-    console.log(`[Background] 任务 ${taskId} 状态:`, data);
+    TubeTransDebug.log(`[Background] 任务 ${taskId} 状态:`, data);
     
     // 更新任务状态
     activeTasks[taskId].status = data.status || 'unknown';
@@ -598,7 +601,7 @@ async function checkTaskStatus(taskId) {
     
     // 如果任务完成或失败，执行相应操作
     if (data.status === 'completed') {
-      console.log(`[Background] 任务 ${taskId} 已完成`);
+      TubeTransDebug.log(`[Background] 任务 ${taskId} 已完成`);
       
       // 下载字幕文件
       await downloadSubtitleFile(taskId, activeTasks[taskId].videoId);
@@ -607,22 +610,22 @@ async function checkTaskStatus(taskId) {
       stopTaskPolling(taskId);
     } 
     else if (data.status === 'strategies_ready') {
-      console.log(`[Background] 任务 ${taskId} 翻译策略已就绪`);
+      TubeTransDebug.log(`[Background] 任务 ${taskId} 翻译策略已就绪`);
       // 只在第一次状态为strategies_ready时获取策略
       if (!activeTasks[taskId].strategiesFetched) {
         await fetchTranslationStrategies(taskId, activeTasks[taskId].videoId);
         // 标记已获取策略
         activeTasks[taskId].strategiesFetched = true;
         
-        console.log(`[Background] 任务 ${taskId} 已获取翻译策略，不会重复获取`);
+        TubeTransDebug.log(`[Background] 任务 ${taskId} 已获取翻译策略，不会重复获取`);
       } else {
-        console.log(`[Background] 任务 ${taskId} 已经获取过翻译策略，跳过重复获取`);
+        TubeTransDebug.log(`[Background] 任务 ${taskId} 已经获取过翻译策略，跳过重复获取`);
       }
       
       // 不停止轮询，继续等待翻译完成
     }
     else if (data.status === 'failed') {
-      console.error(`[Background] 任务 ${taskId} 失败:`, data.error || '未知错误');
+      TubeTransDebug.error(`[Background] 任务 ${taskId} 失败:`, data.error || '未知错误');
       
       // 更新任务状态包含错误信息
       activeTasks[taskId].errorMessage = data.error || '翻译过程中出现错误';
@@ -648,7 +651,7 @@ async function checkTaskStatus(taskId) {
     }
     
   } catch (error) {
-    console.error(`[Background] 检查任务 ${taskId} 状态出错:`, error);
+    TubeTransDebug.error(`[Background] 检查任务 ${taskId} 状态出错:`, error);
     
     // 连续错误计数
     activeTasks[taskId].errorCount = (activeTasks[taskId].errorCount || 0) + 1;
@@ -665,7 +668,7 @@ async function checkTaskStatus(taskId) {
     
     // 如果连续错误超过5次，停止轮询
     if (activeTasks[taskId].errorCount > 5) {
-      console.error(`[Background] 任务 ${taskId} 连续错误超过限制，停止轮询`);
+      TubeTransDebug.error(`[Background] 任务 ${taskId} 连续错误超过限制，停止轮询`);
       stopTaskPolling(taskId);
       
       // 更新任务状态为失败
@@ -694,9 +697,9 @@ async function saveTaskStatus(videoId, status) {
   try {
     const key = `task_status_${videoId}`;
     await chrome.storage.local.set({ [key]: status });
-    console.log(`[Background] 已保存任务状态: ${key}`, status);
+    TubeTransDebug.log(`[Background] 已保存任务状态: ${key}`, status);
   } catch (error) {
-    console.error('[Background] 保存任务状态失败:', error);
+    TubeTransDebug.error('[Background] 保存任务状态失败:', error);
   }
 }
 
@@ -707,7 +710,7 @@ async function saveTaskStatus(videoId, status) {
  */
 async function downloadSubtitleFile(taskId, videoId) {
   try {
-    console.log(`[Background] 下载任务 ${taskId} 的字幕文件`);
+    TubeTransDebug.log(`[Background] 下载任务 ${taskId} 的字幕文件`);
     
     const response = await fetch(`${API_SERVER}/api/subtitles/${taskId}`, {
       credentials: 'include'
@@ -722,11 +725,11 @@ async function downloadSubtitleFile(taskId, videoId) {
     // 保存字幕到本地存储
     const key = `subtitle_${videoId}`;
     await chrome.storage.local.set({ [key]: srtContent });
-    console.log(`[Background] 已保存字幕到本地存储: ${key}`);
+    TubeTransDebug.log(`[Background] 已保存字幕到本地存储: ${key}`);
     
     return true;
   } catch (error) {
-    console.error('[Background] 下载字幕文件失败:', error);
+    TubeTransDebug.error('[Background] 下载字幕文件失败:', error);
     return false;
   }
 }
@@ -738,16 +741,16 @@ async function downloadSubtitleFile(taskId, videoId) {
    */
 async function updateTranslationStrategies(videoId, strategies_data) {
   if (!videoId) return;
-  console.log('开始在任务状态中写入翻译策略', strategies_data);
+  TubeTransDebug.log('开始在任务状态中写入翻译策略', strategies_data);
 
   try {
     await chrome.storage.local.set({
       [`translation_strategies_${videoId}`]: strategies_data,
       [`has_translation_strategies_${videoId}`]: true
     });
-    console.log(`翻译策略已写入: ${videoId}`, strategies_data);
+    TubeTransDebug.log(`翻译策略已写入: ${videoId}`, strategies_data);
   } catch (error) {
-    console.error('更新翻译策略失败:', error);
+    TubeTransDebug.error('更新翻译策略失败:', error);
   }
 }
 
@@ -758,7 +761,7 @@ async function updateTranslationStrategies(videoId, strategies_data) {
  */
 async function fetchTranslationStrategies(taskId, videoId) {
   try {
-    console.log(`[Background] 获取任务 ${taskId} 的翻译策略`);
+    TubeTransDebug.log(`[Background] 获取任务 ${taskId} 的翻译策略`);
     
     const response = await fetch(`${API_SERVER}/api/tasks/${taskId}/strategies`, {
       credentials: 'include'
@@ -769,11 +772,11 @@ async function fetchTranslationStrategies(taskId, videoId) {
     }
     
     const strategiesData = await response.json();
-    console.log(`[Background] 获取到翻译策略:`, strategiesData);
+    TubeTransDebug.log(`[Background] 获取到翻译策略:`, strategiesData);
 
     // 保存翻译策略到存储
     updateTranslationStrategies(videoId, strategiesData);
-    console.log('保存翻译策略到存储', strategiesData);
+    TubeTransDebug.log('保存翻译策略到存储', strategiesData);
     
     // 通知前端更新翻译策略
     chrome.runtime.sendMessage({
@@ -786,7 +789,7 @@ async function fetchTranslationStrategies(taskId, videoId) {
     
     return true;
   } catch (error) {
-    console.error('[Background] 获取翻译策略失败:', error);
+    TubeTransDebug.error('[Background] 获取翻译策略失败:', error);
     return false;
   }
 }
@@ -794,4 +797,4 @@ async function fetchTranslationStrategies(taskId, videoId) {
 // 初始化后台服务
 initBackgroundListeners();
 
-console.log('[Background] 后台脚本已加载');
+TubeTransDebug.log('[Background] 后台脚本已加载');

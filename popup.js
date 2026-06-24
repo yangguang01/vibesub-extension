@@ -3,18 +3,12 @@
  * 弹出窗口脚本
  */
 
-// API服务器地址
-const API_SERVER = 'https://api.rxaigc.com';
-
 document.addEventListener('DOMContentLoaded', async () => {
+  const { ACTIONS } = VibeSubMessages;
+
   // 获取DOM元素
   const videoTitleEl = document.getElementById('video-title');
-  const estimatedTimeEl = document.getElementById('estimated-time');
   const channelNameEl = document.getElementById('channel-name');
-  const modelSelect = document.getElementById('model');
-  const customPromptInput = document.getElementById('custom-prompt');
-  const specialTermsInput = document.getElementById('special-terms');
-  const targetLangSelect = document.getElementById('target-lang');
   const translateBtn = document.getElementById('translate-btn');
   const progressSection = document.getElementById('translation-progress');
   const progressFill = document.getElementById('progress-fill');
@@ -26,20 +20,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const strategiesStatus = document.getElementById('strategies-status');
   const strategiesList = document.getElementById('strategies-list');
   
-  // 测试按钮
-  const testStrategiesBtn = document.getElementById('test-strategies-btn');
-  
   // 登录相关元素
   const loginLink = document.getElementById('login-link');
   const loginText = document.getElementById('login-text');
   const userDropdown = document.getElementById('user-dropdown');
   const logoutBtn = document.getElementById('logout-btn');
-  
-  // 开关按钮相关元素
-  const togglePrompt = document.getElementById('toggle-prompt');
-  const toggleTerms = document.getElementById('toggle-terms');
-  const promptContainer = document.getElementById('prompt-container');
-  const termsContainer = document.getElementById('terms-container');
   
   // 当前任务和视频信息
   let currentTaskId = null;
@@ -50,6 +35,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // 当前进度值（用于在新进度值为空时保持之前的值）
   let currentProgress = 0;
+  let translateButtonMode = 'translate';
 
   // 自适应窗口高度
   function adjustPopupHeight() {
@@ -102,20 +88,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 获取当前标签页的YouTube视频信息
   await getCurrentVideoInfo();
 
-  // 设置事件监听器
-  // translateBtn.addEventListener('click', submitTranslationTask);
-  
   // 设置翻译按钮的点击事件
-  translateBtn.addEventListener('click', function(event) {
-    // 按住Ctrl或Command键点击时运行测试功能
-    if (event.ctrlKey || event.metaKey) {
-      event.preventDefault();
-      testTranslationStrategies();
-    } else {
-      // 正常点击时执行原来的任务提交
-      submitTranslationTask();
-    }
-  });
+  translateBtn.addEventListener('click', handleTranslateButtonClick);
   
   // 加载任务状态
   await loadTaskStatus();
@@ -126,21 +100,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 设置登录相关事件监听
   setupLoginEvents();
   
-  // 设置测试按钮点击事件
-  if (testStrategiesBtn) {
-    testStrategiesBtn.addEventListener('click', testTranslationStrategies);
+  function handleTranslateButtonClick() {
+    if (translateButtonMode === 'apply') {
+      applyExistingSubtitles();
+      return;
+    }
+    submitTranslationTask();
   }
-  
-  // 开关按钮监听
-  // togglePrompt.addEventListener('change', function() {
-  //   promptContainer.style.display = this.checked ? 'block' : 'none';
-  //   updateUI(); // 调整高度
-  // });
-  
-  // toggleTerms.addEventListener('change', function() {
-  //   termsContainer.style.display = this.checked ? 'block' : 'none';
-  //   updateUI(); // 调整高度
-  // });
+
+  function setTranslateButtonState(mode, label, iconClass, disabled = false) {
+    translateButtonMode = mode;
+    translateBtn.disabled = disabled;
+    const iconWrapper = document.createElement('span');
+    iconWrapper.className = 'submit-icon icon';
+    const icon = document.createElement('i');
+    icon.className = iconClass;
+    iconWrapper.appendChild(icon);
+    translateBtn.replaceChildren(iconWrapper, document.createTextNode(label));
+  }
   
   /**
    * 获取当前标签页的YouTube视频信息（通过Content Script）
@@ -174,11 +151,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // 通过Content Script获取完整视频信息
       TubeTransDebug.log('[Popup] 向Content Script请求视频信息...');
-      
+
       const response = await new Promise((resolve) => {
         chrome.tabs.sendMessage(
-          currentTab.id, 
-          { action: 'getVideoInfo' }, 
+          currentTab.id,
+          { action: ACTIONS.GET_VIDEO_INFO },
           (response) => {
             if (chrome.runtime.lastError) {
               TubeTransDebug.error('[Popup] Content Script通信失败:', chrome.runtime.lastError);
@@ -266,12 +243,20 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   function showNoVideoMessage() {
     const contentEl = document.getElementById('content');
-    contentEl.innerHTML = `
-      <div class="no-video">
-        <p><i class="fas fa-exclamation-circle"></i> 请在YouTube视频页面打开此扩展</p>
-        <p>只有在观看视频时才能使用翻译功能</p>
-      </div>
-    `;
+    const container = document.createElement('div');
+    container.className = 'no-video';
+
+    const firstLine = document.createElement('p');
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-exclamation-circle';
+    firstLine.appendChild(icon);
+    firstLine.appendChild(document.createTextNode(' 请在YouTube视频页面打开此扩展'));
+
+    const secondLine = document.createElement('p');
+    secondLine.textContent = '只有在观看视频时才能使用翻译功能';
+
+    container.append(firstLine, secondLine);
+    contentEl.replaceChildren(container);
   }
   
   /**
@@ -285,7 +270,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 用户未登录，提示登录
         const shouldLogin = confirm('需要先登录才能使用翻译功能。是否前往登录页面？');
         if (shouldLogin) {
-          chrome.tabs.create({ url: 'https://auth.rxaigc.com' });
+          chrome.tabs.create({ url: VibeSubConfig.AUTH_URL });
           window.close();
         }
         return;
@@ -312,23 +297,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       currentVideoId = videoId;
       
       // 更新UI状态
-      translateBtn.disabled = true;
-      translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-spinner fa-spin"></i></span>创建任务中...';
+      setTranslateButtonState('translate', '创建任务中...', 'fas fa-spinner fa-spin', true);
       
       // 显示进度区域
       progressSection.style.display = 'block';
-      updateProgress(0, '准备中...');
+      updateProgress(0, '准备中...', { reset: true });
       
       // 构建任务数据
       const taskData = {
         videoId: videoId,
         youtube_url: currentTab.url,
         content_name: document.getElementById('video-title').textContent || '',
-        channel_name: document.getElementById('channel-name').textContent || '',
-        // 可扩展其他参数
-        // custom_prompt: customPromptInput.value,
-        // special_terms: specialTermsInput.value,
-        // language: targetLangSelect.value
+        channel_name: document.getElementById('channel-name').textContent || ''
       };
       
       TubeTransDebug.log('向Background发送创建任务请求:', taskData);
@@ -336,7 +316,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // 通过Background Script创建任务
       const response = await new Promise((resolve) => {
         chrome.runtime.sendMessage({
-          action: 'createTranslationTask',
+          action: ACTIONS.CREATE_TRANSLATION_TASK,
           taskData: taskData
         }, resolve);
       });
@@ -348,7 +328,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentTaskId = response.taskId;
         
         // 更新状态文本
-        updateProgress(0, '任务已创建，正在处理...');
+        updateProgress(0, VibeSubStatus.getStatusText(response.status || 'pending'));
         
         // 设置监听来自后台的消息
         setupBackgroundMessageListener();
@@ -368,7 +348,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           // 提示用户登录
           const shouldLogin = confirm('登录状态已过期，需要重新登录。是否前往登录页面？');
           if (shouldLogin) {
-            chrome.tabs.create({ url: 'https://auth.rxaigc.com' });
+            chrome.tabs.create({ url: VibeSubConfig.AUTH_URL });
             window.close();
           }
         } else {
@@ -377,8 +357,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         // 恢复按钮状态
-        translateBtn.disabled = false;
-        translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>开始翻译';
+        setTranslateButtonState('translate', '开始翻译', 'fas fa-language');
       }
       
     } catch (error) {
@@ -386,8 +365,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       alert(`提交翻译任务失败: ${error.message}`);
       
       // 恢复按钮状态
-      translateBtn.disabled = false;
-      translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>开始翻译';
+      setTranslateButtonState('translate', '开始翻译', 'fas fa-language');
     }
   }
   
@@ -398,7 +376,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 只设置一次监听器
     if (!window.hasBackgroundListener) {
       chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-        if (message.action === 'taskStatusUpdate' && message.taskId === currentTaskId) {
+        if (message.action === ACTIONS.TASK_STATUS_UPDATE && message.taskId === currentTaskId) {
           TubeTransDebug.log('收到后台任务状态更新:', message);
           
           // 检查是否有错误信息
@@ -429,18 +407,18 @@ document.addEventListener('DOMContentLoaded', async () => {
           
             // 如果任务完成或失败，更新UI
             if (message.status === 'completed') {
-              // 修改按钮为"应用字幕"
-              translateBtn.disabled = false;
-              translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-closed-captioning"></i></span>应用字幕';
-              // 修改按钮点击事件为应用字幕
-              translateBtn.removeEventListener('click', submitTranslationTask);
-              translateBtn.addEventListener('click', applyExistingSubtitles);
+              if (message.subtitleReady === false) {
+                updateProgress(1, '字幕文件准备中...');
+                setTranslateButtonState('apply', '准备字幕中...', 'fas fa-spinner fa-spin', true);
+              } else {
+                // 修改按钮为"应用字幕"
+                setTranslateButtonState('apply', '应用字幕', 'fas fa-closed-captioning');
+              }
             } else if (message.status === 'failed') {
               // 显示错误消息
-              updateProgress(0, message.errorMessage || '翻译失败');
+              updateProgress(currentProgress, message.errorMessage || '翻译失败');
               // 失败的任务显示错误状态
-              translateBtn.disabled = false;
-              translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>开始翻译';
+              setTranslateButtonState('translate', '开始翻译', 'fas fa-language');
             }
           }
         }
@@ -463,14 +441,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     try {
-      const key = `task_status_${currentVideoId}`;
+      const key = VibeSubStorage.keys.taskStatus(currentVideoId);
       const data = await chrome.storage.local.get([key]);
       const taskStatus = data[key];
       TubeTransDebug.log('从存储加载任务状态:', taskStatus);
 
       // 加载并恢复翻译策略
-      const strategyFlagKey = `has_translation_strategies_${currentVideoId}`;
-      const strategyDataKey = `translation_strategies_${currentVideoId}`;
+      const strategyFlagKey = VibeSubStorage.keys.hasTranslationStrategies(currentVideoId);
+      const strategyDataKey = VibeSubStorage.keys.translationStrategies(currentVideoId);
       const strategyData = await chrome.storage.local.get([strategyFlagKey, strategyDataKey]);
       TubeTransDebug.log('从存储加载翻译策略:', strategyData);
       
@@ -495,7 +473,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           // **新增**：本地没有拿到，就让 background 去拉一次
           TubeTransDebug.log('本地没策略，主动请求后台获取一次');
           chrome.runtime.sendMessage({
-            action: 'fetchTranslationStrategies',
+            action: ACTIONS.FETCH_TRANSLATION_STRATEGIES,
             taskId: currentTaskId,
             videoId: currentVideoId
           }, (response) => {
@@ -513,30 +491,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         if (taskStatus.status === 'completed') {
           // 已完成的任务显示100%进度
-          updateProgress(1, '翻译完成！');
-          // 修改按钮为"应用字幕"
-          translateBtn.disabled = false;
-          translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-closed-captioning"></i></span>应用字幕';
-          // 修改按钮点击事件为应用字幕
-          translateBtn.removeEventListener('click', submitTranslationTask);
-          translateBtn.addEventListener('click', applyExistingSubtitles);
+          updateProgress(1, VibeSubStatus.getStatusText('completed'));
+          setTranslateButtonState('apply', '应用字幕', 'fas fa-closed-captioning');
           
         } else if (taskStatus.status === 'failed') {
           // 失败的任务显示错误状态
-          updateProgress(0, taskStatus.errorMessage || '翻译失败');
+          updateProgress(taskStatus.progress || currentProgress, taskStatus.errorMessage || '翻译失败');
           // 按钮可点击，允许重试
-          translateBtn.disabled = false;
-          translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-language"></i></span>开始翻译';
+          setTranslateButtonState('translate', '开始翻译', 'fas fa-language');
         } else {
           // 进行中的任务，询问后台当前状态
           updateProgress(taskStatus.progress || 0, getStatusText(taskStatus.status));
-          // 禁用按钮
-          translateBtn.disabled = true;
-          translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-spinner fa-spin"></i></span>翻译中...';
+          setTranslateButtonState('translate', '翻译中...', 'fas fa-spinner fa-spin', true);
           
           // 查询后台当前的任务状态
           chrome.runtime.sendMessage({
-            action: 'getTaskStatus',
+            action: ACTIONS.GET_TASK_STATUS,
             taskId: currentTaskId
           }, (response) => {
             if (chrome.runtime.lastError) {
@@ -552,7 +522,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else {
               // 恢复后台轮询
               chrome.runtime.sendMessage({
-                action: 'startTaskPolling',
+                action: ACTIONS.START_TASK_POLLING,
                 taskId: currentTaskId,
                 videoId: currentVideoId
               });
@@ -591,11 +561,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   /**
    * 更新进度显示
    */
-  function updateProgress(progress, statusText) {
+  function updateProgress(progress, statusText, options = {}) {
     // 更新当前进度值
-    currentProgress = progress;
+    currentProgress = options.reset
+      ? VibeSubStatus.normalizeProgress(progress, 0)
+      : VibeSubStatus.nextProgress(currentProgress, progress);
     
-    const percentage = Math.round(progress * 100);
+    const percentage = Math.round(currentProgress * 100);
     progressFill.style.width = `${percentage}%`;
     progressPercentage.textContent = `${percentage}%`;
     progressStatus.textContent = statusText;
@@ -630,7 +602,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     strategiesList.style.display = 'block';
     
     // 清空现有策略列表
-    strategiesList.innerHTML = '';
+    strategiesList.replaceChildren();
     
     TubeTransDebug.log('开始写入翻译策略数据');
     // 添加策略条目
@@ -648,20 +620,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    * 获取状态文本
    */
   function getStatusText(status) {
-    switch (status) {
-      case 'pending':
-        return '等待处理...';
-      case 'processing':
-        return '思考翻译策略...';
-      case 'strategies_ready':
-        return '正在翻译...';
-      case 'completed':
-        return '翻译完成！';
-      case 'failed':
-        return '翻译失败';
-      default:
-        return '状态异常，请刷新页面';
-    }
+    return VibeSubStatus.getStatusText(status);
   }
 
 
@@ -671,8 +630,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function applyExistingSubtitles() {
     try {
       // 显示加载状态
-      translateBtn.disabled = true;
-      translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-spinner fa-spin"></i></span>应用中...';
+      setTranslateButtonState('apply', '应用中...', 'fas fa-spinner fa-spin', true);
+
+      await ensureSubtitleReady();
       
       // 获取当前标签页
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -681,15 +641,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       // 通知内容脚本应用字幕
       chrome.tabs.sendMessage(
         currentTab.id,
-        { action: 'applySubtitles' },
+        { action: ACTIONS.APPLY_SUBTITLES },
         (response) => {
           if (chrome.runtime.lastError) {
             TubeTransDebug.error('应用字幕失败:', chrome.runtime.lastError);
             alert('应用字幕失败，请刷新页面重试');
             
             // 恢复按钮状态
-            translateBtn.disabled = false;
-            translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-closed-captioning"></i></span>应用字幕';
+            setTranslateButtonState('apply', '应用字幕', 'fas fa-closed-captioning');
             return;
           }
           
@@ -700,8 +659,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('应用字幕失败: ' + (response ? response.message : '未知错误'));
             
             // 恢复按钮状态
-            translateBtn.disabled = false;
-            translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-closed-captioning"></i></span>应用字幕';
+            setTranslateButtonState('apply', '应用字幕', 'fas fa-closed-captioning');
           }
         }
       );
@@ -710,9 +668,37 @@ document.addEventListener('DOMContentLoaded', async () => {
       alert(`应用字幕失败: ${error.message}`);
       
       // 恢复按钮状态
-      translateBtn.disabled = false;
-      translateBtn.innerHTML = '<span class="submit-icon icon"><i class="fas fa-closed-captioning"></i></span>应用字幕';
+      setTranslateButtonState('apply', '应用字幕', 'fas fa-closed-captioning');
     }
+  }
+
+  async function ensureSubtitleReady() {
+    if (!currentVideoId || !currentTaskId) {
+      throw new Error('缺少任务信息，请刷新页面后重试');
+    }
+
+    const response = await new Promise((resolve) => {
+      chrome.runtime.sendMessage({
+        action: ACTIONS.GET_SUBTITLE_FROM_STORAGE,
+        videoId: currentVideoId,
+        taskId: currentTaskId
+      }, (result) => {
+        if (chrome.runtime.lastError) {
+          resolve({
+            success: false,
+            message: chrome.runtime.lastError.message || '无法读取字幕文件'
+          });
+          return;
+        }
+        resolve(result);
+      });
+    });
+
+    if (!response || !response.success || !response.subtitle) {
+      throw new Error(response && response.message ? response.message : '字幕文件还没有下载完成');
+    }
+
+    return response.subtitle;
   }
 
   // 初始调整高度
@@ -738,7 +724,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       TubeTransDebug.log('向background请求检查登录状态...');
       
       const response = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({ action: 'checkLoginStatus' }, resolve);
+        chrome.runtime.sendMessage({ action: ACTIONS.CHECK_LOGIN_STATUS }, resolve);
       });
       
       if (response && !chrome.runtime.lastError) {
@@ -768,14 +754,19 @@ document.addEventListener('DOMContentLoaded', async () => {
    * @param {boolean} isLoggedIn - 是否已登录
    */
   function updateLoginStatus(isLoggedIn) {
+    loginText.textContent = '';
+
     if (isLoggedIn && userInfo) {
       // 已登录状态
-      loginText.innerHTML = `${userInfo.username} <small>(今日额度: ${userInfo.daily_quota})</small>`;
-      loginLink.href = 'https://auth.rxaigc.com'; // 账户管理页面
+      loginText.appendChild(document.createTextNode(userInfo.username || '已登录'));
+      const quota = document.createElement('small');
+      quota.textContent = ` (今日额度: ${userInfo.daily_quota || '--'})`;
+      loginText.appendChild(quota);
+      loginLink.href = VibeSubConfig.AUTH_URL; // 账户管理页面
     } else {
       // 未登录状态
       loginText.textContent = '未登录';
-      loginLink.href = 'https://auth.rxaigc.com'; // 登录页面
+      loginLink.href = VibeSubConfig.AUTH_URL; // 登录页面
     }
     // 调整UI高度
     updateUI();
@@ -794,7 +785,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         userDropdown.style.display = userDropdown.style.display === 'none' ? 'block' : 'none';
       } else {
         // 未登录状态，打开新标签页到登录页面
-        chrome.tabs.create({ url: 'https://auth.rxaigc.com' });
+        chrome.tabs.create({ url: VibeSubConfig.AUTH_URL });
         window.close(); // 关闭弹出窗口
       }
     });
@@ -821,7 +812,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       TubeTransDebug.log('向background请求登出...');
       
       const response = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({ action: 'logout' }, resolve);
+        chrome.runtime.sendMessage({ action: ACTIONS.LOGOUT }, resolve);
       });
       
       if (response && response.success) {
@@ -841,123 +832,4 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
   
-  /**
-   * 设置测试登录状态（通过background script）
-   */
-  async function testSetLoginStatus() {
-    try {
-      TubeTransDebug.log('向background请求设置测试登录状态...');
-      
-      const testUserInfo = {
-        username: '测试用户',
-        daily_quota: 500,
-        user_id: 'test_user_123'
-      };
-      
-      const response = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({ 
-          action: 'setTestLoginStatus',
-          testUserInfo: testUserInfo
-        }, resolve);
-      });
-      
-      if (response && response.isLoggedIn) {
-        TubeTransDebug.log('设置测试登录状态成功:', response);
-        userInfo = response.userInfo;
-        updateLoginStatus(true);
-      } else {
-        TubeTransDebug.error('设置测试登录状态失败:', response ? response.error : '未知错误');
-      }
-    } catch (error) {
-      TubeTransDebug.error('设置测试登录状态异常:', error);
-    }
-  }
-  
-  // 双击logo区域触发测试登录（仅用于开发测试）
-  document.querySelector('.logo').addEventListener('dblclick', testSetLoginStatus);
-  
-  /**
-   * 测试翻译策略显示
-   * 仅用于开发测试
-   */
-  async function testTranslationStrategies() {
-    TubeTransDebug.log('启动翻译策略测试...');
-    
-    if (!currentVideoId) {
-      alert('无法获取当前视频ID');
-      return;
-    }
-    
-    try {
-      // 从本地存储获取翻译策略数据
-      const strategyFlagKey = `has_translation_strategies_${currentVideoId}`;
-      const strategyDataKey = `translation_strategies_${currentVideoId}`;
-      
-      const strategyData = await chrome.storage.local.get([strategyFlagKey, strategyDataKey]);
-      TubeTransDebug.log('从存储加载翻译策略数据:', strategyData);
-      
-      if (strategyData[strategyFlagKey] && strategyData[strategyDataKey]) {
-        // 有存储的策略数据，直接显示
-        TubeTransDebug.log('找到存储的翻译策略，开始显示...');
-        displayTranslationStrategies(strategyData[strategyDataKey]);
-      } else {
-        // 没有存储的策略数据，尝试从接口获取
-        TubeTransDebug.log('未找到存储的翻译策略，尝试从接口获取...');
-        
-        // 检查是否有当前任务ID
-        if (!currentTaskId) {
-          // 尝试从存储中获取任务ID
-          const taskStatusKey = `task_status_${currentVideoId}`;
-          const taskData = await chrome.storage.local.get([taskStatusKey]);
-          if (taskData[taskStatusKey] && taskData[taskStatusKey].taskId) {
-            currentTaskId = taskData[taskStatusKey].taskId;
-            TubeTransDebug.log('从存储中找到任务ID:', currentTaskId);
-          }
-        }
-        
-        if (currentTaskId) {
-          try {
-            TubeTransDebug.log('调用接口获取翻译策略...');
-            const response = await fetch(`${API_SERVER}/api/tasks/${currentTaskId}/strategies`, {
-              credentials: 'include'
-            });
-            
-            if (response.ok) {
-              const strategiesData = await response.json();
-              TubeTransDebug.log('接口返回翻译策略数据:', strategiesData);
-              
-              // 保存到本地存储
-              await updateTranslationStrategies(currentVideoId, strategiesData);
-              
-              // 显示翻译策略
-              displayTranslationStrategies(strategiesData);
-              return;
-            } else {
-              TubeTransDebug.error('接口调用失败:', response.status);
-            }
-          } catch (apiError) {
-            TubeTransDebug.error('调用接口获取翻译策略失败:', apiError);
-          }
-        }
-        
-        // 如果接口调用失败或没有任务ID，使用测试数据
-        TubeTransDebug.log('使用测试数据作为回退...');
-        const testData = {
-          strategies: [
-            "准确翻译和解释关键技术名词，特别是'Transformer'应直接采用音译'变换器'，并首次出现时给出简要定义。",
-            "保持教学和学术风格，注意逻辑性和条理性，把课程讲解的结构清晰地传达出来。",
-            "遇到Stanford的专有课程内容或案例，结合上下文查找权威译法或作简要背景说明。",
-            "special_terms_strategies: 例如'Transformer'译为'变换器模型'，'self-attention'译为'自注意力机制'，'encoder-decoder'译为'编码器-解码器'结构；课程编号和章节请保留原文，如'CS25'。"
-          ]
-        };
-        
-        // 调用显示翻译策略函数
-        displayTranslationStrategies(testData);
-      }
-      
-    } catch (error) {
-      TubeTransDebug.error('获取翻译策略数据失败:', error);
-      alert('获取翻译策略数据失败: ' + error.message);
-    }
-  }
 });

@@ -27,12 +27,8 @@ async function loadSrtFile(videoId) {
       return subtitles;
     }
     
-    // 如果本地没有，使用测试文件（临时解决方案）
-    const srtUrl = chrome.runtime.getURL('test.srt');
-    const response = await fetch(srtUrl);
-    const srtContent = await response.text();
-    TubeTransDebug.log('从测试文件加载字幕成功');
-    return srtContent;
+    TubeTransDebug.log('本地未找到字幕内容');
+    return null;
   } catch (error) {
     TubeTransDebug.error('加载字幕文件失败:', error);
     return null;
@@ -48,7 +44,7 @@ async function getSubtitleFromStorage(videoId) {
   if (!videoId) return null;
   
   try {
-    const key = `subtitle_${videoId}`;
+    const key = VibeSubStorage.keys.subtitle(videoId);
     const data = await chrome.storage.local.get([key]);
     return data[key] || null;
   } catch (error) {
@@ -67,7 +63,7 @@ async function saveSubtitleToStorage(videoId, srtContent) {
   if (!videoId || !srtContent) return false;
   
   try {
-    const key = `subtitle_${videoId}`;
+    const key = VibeSubStorage.keys.subtitle(videoId);
     await chrome.storage.local.set({ [key]: srtContent });
     TubeTransDebug.log(`字幕已保存到本地存储，键: ${key}`);
     return true;
@@ -375,14 +371,19 @@ function startMonitoring() {
         'position': subtitleContainer.style.position,
         'bottom': subtitleContainer.style.bottom
       });
-      TubeTransDebug.log('字幕容器内容:', subtitleContainer.innerHTML);
+      TubeTransDebug.log('字幕容器文本:', subtitleContainer.textContent);
       
       // 尝试强制显示字幕
       subtitleContainer.style.display = 'block';
       subtitleContainer.style.zIndex = '9999';
       subtitleContainer.style.visibility = 'visible';
       subtitleContainer.style.backgroundColor = 'rgba(255,0,0,0.3)';
-      subtitleContainer.innerHTML = '<span style="background-color: black; color: white; padding: 5px;">测试字幕 - 如果看到此内容，则字幕系统工作正常</span>';
+      const testSubtitle = document.createElement('span');
+      testSubtitle.style.backgroundColor = 'black';
+      testSubtitle.style.color = 'white';
+      testSubtitle.style.padding = '5px';
+      testSubtitle.textContent = '测试字幕 - 如果看到此内容，则字幕系统工作正常';
+      subtitleContainer.replaceChildren(testSubtitle);
       
       TubeTransDebug.log('已尝试强制显示测试字幕');
     }
@@ -419,7 +420,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   TubeTransDebug.log('[Content] 收到消息:', message);
   
   // 处理获取视频信息请求
-  if (message.action === 'getVideoInfo') {
+  if (message.action === VibeSubMessages.ACTIONS.GET_VIDEO_INFO) {
     TubeTransDebug.log('[Content] 处理获取视频信息请求...');
     
     getCompleteVideoInfo()
@@ -439,7 +440,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   // 处理保存字幕文件请求
-  if (message.action === 'saveSubtitleFile') {
+  if (message.action === VibeSubMessages.ACTIONS.SAVE_SUBTITLE_FILE) {
     if (!message.data || !message.data.videoId || !message.data.srtContent) {
       sendResponse({ success: false, message: '数据不完整' });
       return true;
@@ -461,7 +462,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   // 处理应用字幕请求
-  if (message.action === 'applySubtitles') {
+  if (message.action === VibeSubMessages.ACTIONS.APPLY_SUBTITLES) {
     TubeTransDebug.log('[Content] 处理应用字幕请求...');
     
     // 停止现有字幕显示
@@ -480,7 +481,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   // 处理开始翻译请求 (兼容旧版本)
-  if (message.action === 'translateSubtitles') {
+  if (message.action === VibeSubMessages.ACTIONS.TRANSLATE_SUBTITLES_LEGACY) {
     // 显示翻译中状态
     showTranslationStatus('请使用新版翻译功能', false);
     

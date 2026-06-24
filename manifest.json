@@ -1,6 +1,6 @@
 {
-  "name": "VibeSub - 使用AI生成专业且自然的YouTube中文字幕",
-  "version": "1.1.0",
+  "name": "【测试】VibeSub - 使用AI生成专业且自然的YouTube中文字幕",
+  "version": "1.3.0",
   "manifest_version": 3,
   "description": "使用生成式AI模型翻译YouTube视频字幕",
   "icons": {
@@ -13,7 +13,16 @@
   "content_scripts": [
     {
       "matches": ["*://www.youtube.com/*"],
-      "js": ["debug.js", "subtitle-engine.js", "content.js"],
+      "js": [
+        "debug.js",
+        "shared/config.js",
+        "shared/messages.js",
+        "shared/storage.js",
+        "shared/status.js",
+        "shared/srt.js",
+        "subtitle-engine.js",
+        "content.js"
+      ],
       "css": ["styles.css"]
     }
   ],
@@ -30,7 +39,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["*.srt", "debug.js"],
+      "resources": ["debug.js"],
       "matches": ["*://www.youtube.com/*"]
     }
   ]

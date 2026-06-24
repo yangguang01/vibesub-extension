@@ -203,59 +203,9 @@ class SubtitleEngine {
    */
   parseSRT(srtContent) {
     TubeTransDebug.log('SubtitleEngine: 开始解析SRT文件');
-    
-    // 分割字幕块
-    const srtLines = srtContent.split('\n');
-    let subtitles = [];
-    let currentSubtitle = null;
-    
-    for (let i = 0; i < srtLines.length; i++) {
-      const line = srtLines[i].trim();
-      
-      // 空行表示一个字幕块的结束
-      if (line === '') {
-        if (currentSubtitle && currentSubtitle.text) {
-          subtitles.push(currentSubtitle);
-        }
-        currentSubtitle = null;
-        continue;
-      }
-      
-      // 如果没有当前字幕块，创建一个新的
-      if (!currentSubtitle) {
-        // 跳过序号行
-        if (!isNaN(parseInt(line))) {
-          currentSubtitle = { start: 0, end: 0, text: '' };
-          continue;
-        }
-      }
-      
-      // 解析时间行
-      if (currentSubtitle && !currentSubtitle.start && line.includes('-->')) {
-        const times = line.split('-->');
-        currentSubtitle.start = this.timeToSeconds(times[0].trim());
-        currentSubtitle.end = this.timeToSeconds(times[1].trim());
-        continue;
-      }
-      
-      // 添加字幕文本
-      if (currentSubtitle && currentSubtitle.start) {
-        if (currentSubtitle.text) {
-          currentSubtitle.text += '<br>' + line;
-        } else {
-          currentSubtitle.text = line;
-        }
-      }
-    }
-    
-    // 添加最后一个字幕
-    if (currentSubtitle && currentSubtitle.text) {
-      subtitles.push(currentSubtitle);
-    }
-    
-    this.subtitles = subtitles;
+    this.subtitles = VibeSubSrt.parseSRT(srtContent);
     TubeTransDebug.log(`SubtitleEngine: 解析完成，共有 ${this.subtitles.length} 条字幕`);
-    return subtitles;
+    return this.subtitles;
   }
   
   /**
@@ -264,8 +214,7 @@ class SubtitleEngine {
    * @returns {number} 秒数
    */
   timeToSeconds(timeString) {
-    const time = timeString.replace(',', '.').split(':');
-    return parseFloat(time[0]) * 3600 + parseFloat(time[1]) * 60 + parseFloat(time[2]);
+    return VibeSubSrt.timeToSeconds(timeString);
   }
   
   /**
@@ -290,10 +239,10 @@ class SubtitleEngine {
     this.subtitleContainer.style.textShadow = '2px 2px 4px rgba(0,0,0,0.8)'; // 增强阴影
     this.subtitleContainer.style.zIndex = '9999'; // 大幅提高z-index
     this.subtitleContainer.style.padding = '10px';
-    this.subtitleContainer.style.pointerEvents = 'auto'; // 允许交互
-    this.subtitleContainer.style.cursor = 'grab'; // 设置拖拽光标
+    this.subtitleContainer.style.pointerEvents = 'none'; // 透明区域不拦截 YouTube 控件点击
+    this.subtitleContainer.style.cursor = 'default';
     this.subtitleContainer.style.backgroundColor = 'rgba(0,0,0,0)'; // 添加半透明背景
-    this.subtitleContainer.style.display = 'block !important'; // 强制显示
+    this.subtitleContainer.style.display = 'block'; // 强制显示
     
     // 尝试不同的方法找到视频播放器容器
     const videoPlayer = document.querySelector('.html5-video-player');
@@ -349,13 +298,15 @@ class SubtitleEngine {
     this.subtitleContainer.style.visibility = 'visible';
     this.subtitleContainer.style.opacity = '1';
     
-    // 添加一些HTML结构使字幕更容易阅读
-    this.subtitleContainer.innerHTML = `<span style="background-color: rgba(0,0,0,0.5); padding: 3px 8px; border-radius: 4px;">${text}</span>`;
+    const subtitleText = document.createElement('span');
+    subtitleText.className = 'youtube-custom-subtitle-text';
+    VibeSubSrt.appendSubtitleText(subtitleText, text);
+    this.subtitleContainer.replaceChildren(subtitleText);
     
     TubeTransDebug.log('显示字幕:', {
       '文本': text,
       '容器可见性': this.subtitleContainer.style.display,
-      '字幕HTML': this.subtitleContainer.innerHTML
+      '字幕文本': text
     });
   }
   
@@ -364,7 +315,7 @@ class SubtitleEngine {
    */
   clearSubtitle() {
     if (this.subtitleContainer) {
-      this.subtitleContainer.innerHTML = '';
+      this.subtitleContainer.replaceChildren();
       TubeTransDebug.log('字幕已清除');
     }
   }

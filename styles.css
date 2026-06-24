@@ -6,9 +6,9 @@
   right: 0;
   text-align: center;
   z-index: 9999;
-  pointer-events: auto;
+  pointer-events: none;
   user-select: none;
-  cursor: grab;
+  cursor: default;
   transition: opacity 0.2s ease;
 }
 
@@ -32,6 +32,8 @@
   max-width: 80%;
   border: 2px solid transparent;
   transition: border-color 0.2s ease, background-color 0.2s ease;
+  pointer-events: auto;
+  cursor: grab;
 }
 
 .youtube-custom-subtitle:hover span {

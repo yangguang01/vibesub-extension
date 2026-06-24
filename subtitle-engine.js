@@ -36,10 +36,16 @@ class SubtitleEngine {
    */
   async loadPositionSettings() {
     try {
-      const data = await chrome.storage.local.get(['subtitlePosition']);
-      if (data.subtitlePosition) {
-        this.subtitleX = data.subtitlePosition.x || 0;
-        this.subtitleY = data.subtitlePosition.y || 0;
+      const key = VibeSubStorage.SUBTITLE_POSITION_KEY;
+      const data = await chrome.storage.local.get([key]);
+      const savedPosition = data[key];
+      if (savedPosition) {
+        const savedX = Number(savedPosition.x);
+        const savedY = Number(savedPosition.y);
+
+        this.subtitleX = Number.isFinite(savedX) ? savedX : 0;
+        this.subtitleY = Number.isFinite(savedY) ? savedY : 0;
+        this.updateSubtitlePosition();
         TubeTransDebug.log('SubtitleEngine: 加载位置设置', { x: this.subtitleX, y: this.subtitleY });
       }
     } catch (error) {
@@ -381,6 +387,8 @@ class SubtitleEngine {
     if (this.subtitleContainer) {
       this.subtitleContainer.removeEventListener('mousedown', this.handleMouseDown);
       this.subtitleContainer.removeEventListener('dblclick', this.handleDoubleClick);
+      this.subtitleContainer.remove();
+      this.subtitleContainer = null;
     }
     
     // 清理全局事件监听器（如果正在拖拽）
@@ -390,7 +398,6 @@ class SubtitleEngine {
       this.isDragging = false;
     }
     
-    this.clearSubtitle();
     this.currentSubtitle = null;
   }
 }

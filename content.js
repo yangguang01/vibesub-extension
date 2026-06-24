@@ -108,6 +108,11 @@ async function initSubtitles() {
     TubeTransDebug.log('未找到字幕内容，无法初始化字幕');
     return false;
   }
+
+  if (subtitleEngine) {
+    subtitleEngine.stop();
+    subtitleEngine = null;
+  }
   
   // 创建字幕引擎
   subtitleEngine = new SubtitleEngine(videoElement);

@@ -57,4 +57,19 @@ const styles = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
 assert.match(styles, /\.youtube-custom-subtitle\s*\{[\s\S]*pointer-events:\s*none;/);
 assert.match(styles, /\.youtube-custom-subtitle span\s*\{[\s\S]*pointer-events:\s*auto;/);
 
+const background = fs.readFileSync(path.join(root, 'background.js'), 'utf8');
+assert.match(background, /startTaskPolling\(taskId,\s*taskData\.videoId,\s*\{[\s\S]*status:\s*initialStatus,[\s\S]*progress:\s*data\.progress[\s\S]*\}\);/);
+assert.match(background, /const initialTaskState = typeof initialState === 'string'[\s\S]*progress:\s*VibeSubStatus\.normalizeProgress\(initialTaskState\.progress,\s*0\)/);
+assert.match(background, /await updateTranslationStrategies\(videoId,\s*strategiesData\);/);
+
+const popup = fs.readFileSync(path.join(root, 'popup.js'), 'utf8');
+assert.match(popup, /action:\s*ACTIONS\.START_TASK_POLLING,[\s\S]*initialTaskState:\s*taskStatus/);
+
+const content = fs.readFileSync(path.join(root, 'content.js'), 'utf8');
+assert.match(content, /if \(subtitleEngine\) \{[\s\S]*subtitleEngine\.stop\(\);[\s\S]*subtitleEngine = null;[\s\S]*\}[\s\S]*subtitleEngine = new SubtitleEngine\(videoElement\);/);
+
+const subtitleEngine = fs.readFileSync(path.join(root, 'subtitle-engine.js'), 'utf8');
+assert.match(subtitleEngine, /this\.updateSubtitlePosition\(\);[\s\S]*TubeTransDebug\.log\('SubtitleEngine: 加载位置设置'/);
+assert.match(subtitleEngine, /this\.subtitleContainer\.remove\(\);[\s\S]*this\.subtitleContainer = null;/);
+
 console.log('All tests passed');

@@ -524,7 +524,8 @@ document.addEventListener('DOMContentLoaded', async () => {
               chrome.runtime.sendMessage({
                 action: ACTIONS.START_TASK_POLLING,
                 taskId: currentTaskId,
-                videoId: currentVideoId
+                videoId: currentVideoId,
+                initialTaskState: taskStatus
               });
             }
           });

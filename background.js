@@ -226,7 +226,10 @@ class TaskManager {
       });
 
       // 开始轮询任务状态
-      startTaskPolling(taskId, taskData.videoId, initialStatus);
+      startTaskPolling(taskId, taskData.videoId, {
+        status: initialStatus,
+        progress: data.progress
+      });
 
       TubeTransDebug.log('[TaskManager] 任务创建成功:', taskId);
       return {
@@ -326,7 +329,7 @@ function initBackgroundListeners() {
     
     if (message.action === ACTIONS.START_TASK_POLLING) {
       // 开始轮询任务状态
-      startTaskPolling(message.taskId, message.videoId);
+      startTaskPolling(message.taskId, message.videoId, message.initialTaskState);
       sendResponse({ success: true });
       return false;
     }
@@ -449,7 +452,7 @@ function initBackgroundListeners() {
  * @param {string} taskId - 任务ID
  * @param {string} videoId - 视频ID
  */
-function startTaskPolling(taskId, videoId, initialStatus = 'pending') {
+function startTaskPolling(taskId, videoId, initialState = 'pending') {
   // 防止重复启动
   if (activeTasks[taskId] && activeTasks[taskId].intervalId) {
     TubeTransDebug.log(`[Background] 任务 ${taskId} 已在轮询中`);
@@ -458,11 +461,15 @@ function startTaskPolling(taskId, videoId, initialStatus = 'pending') {
   
   TubeTransDebug.log(`[Background] 开始轮询任务 ${taskId} 的状态`);
   
+  const initialTaskState = typeof initialState === 'string'
+    ? { status: initialState, progress: 0 }
+    : (initialState || {});
+
   // 初始化任务状态
   activeTasks[taskId] = {
     videoId: videoId,
-    status: initialStatus,
-    progress: 0,
+    status: initialTaskState.status || 'pending',
+    progress: VibeSubStatus.normalizeProgress(initialTaskState.progress, 0),
     startTime: new Date().toISOString(),
     lastCheck: new Date().toISOString(),
     errorCount: 0, // 初始化错误计数
@@ -776,7 +783,7 @@ async function fetchTranslationStrategies(taskId, videoId) {
     TubeTransDebug.log(`[Background] 获取到翻译策略:`, strategiesData);
 
     // 保存翻译策略到存储
-    updateTranslationStrategies(videoId, strategiesData);
+    await updateTranslationStrategies(videoId, strategiesData);
     TubeTransDebug.log('保存翻译策略到存储', strategiesData);
     
     // 通知前端更新翻译策略
